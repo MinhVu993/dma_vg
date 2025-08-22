@@ -1,0 +1,3421 @@
+<template>
+    <v-row>
+        <VfaAppFlow v-if="activeUser?.empno && isComponentReady" v-show="false" ref="AppFlow" appCode="dma"
+            :empno="activeUser.empno" :location="activeUser.location" @sendAppFlow="handleAppFlow" class="mb-4"
+            style="font-size: 10px;"></VfaAppFlow>
+        <v-col cols="12">
+            <v-card>
+                <div class="progress-bar" />
+                <v-toolbar dense color="teal darken-2" dark>
+                    <v-toolbar-title class="d-flex" style="align-items: center">
+                        <v-icon left>mdi-google-classroom</v-icon>
+                        {{ $t("Dormitory listing") }}
+                        <h3 class="ml-5" v-if="activeUser && activeUser.selectedLocation">
+                            {{ activeUser.selectedLocation.toUpperCase() }}
+                        </h3>
+                    </v-toolbar-title>
+                    <v-spacer />
+                    <v-text-field style="max-width: 250px; padding-right: 15px" outlined dense v-model="search"
+                        clearable append-icon="mdi-magnify" :label="$t('Search')" single-line
+                        hide-details></v-text-field>
+                    <v-btn @click="getDormData" :title="$t('Reload')" class="mr-3" color="white" small light nuxt>
+                        <v-icon left>mdi-reload</v-icon>
+                        {{ $t("Reload") }}
+                    </v-btn>
+                    <v-btn @click="appDialog = true" :title="$t('New request')" color="warning" small light nuxt>
+                        <v-icon left>mdi-plus</v-icon>
+                        {{ $t("New request") }}
+                    </v-btn>
+                    <v-btn class="ml-4" v-if="canSeeFloorPlan" :title="$t('Dorm Floor Plan')" color="primary" small
+                        light @click="openFloorPlan()" nuxt>
+                        <v-icon left>mdi-office-building-outline</v-icon>
+                        {{ $t("Dorm Floor Plan") }}
+                    </v-btn>
+                </v-toolbar>
+                <v-tabs background-color="teal darken-2" color="yellow" dark v-model="statusFilter">
+                    <v-tab> {{ $t("All") }} </v-tab>
+                    <v-tab> {{ $t("To do") }} </v-tab>
+                    <v-tab> {{ $t("Processing") }} </v-tab>
+                    <v-tab> {{ $t("Completed") }} </v-tab>
+                    <v-tab> {{ $t("Decline/Cancel") }} </v-tab>
+                </v-tabs>
+                <v-data-table :headers="headers" :items="filteredDormData" class="elevation-1"
+                    :footer-props="{ showFirstLastPage: true, firstIcon: 'mdi-arrow-collapse-left', lastIcon: 'mdi-arrow-collapse-right', prevIcon: 'mdi-minus', nextIcon: 'mdi-plus', 'items-per-page-text': $t('Rows per page'), 'items-per-page-options': [5, 10, 13], }">
+                    <template v-slot:item.name="{ item }">
+                        <v-btn small text @click="showNameDetails(item)">
+                            <v-badge :content="getNameCount(item)" color="error" offset-x="10" offset-y="10">
+                                <v-icon>mdi-account-group</v-icon>
+                            </v-badge>
+                        </v-btn>
+                    </template>
+                    <template v-slot:item.submitter="{ item }">
+                        <v-btn @click="showSubmitterInfo(item)" small text color="orange darken-4">
+                            <v-icon left>mdi-account-details</v-icon>
+                            {{ JSON.parse(item.submitter).empno }} - {{ JSON.parse(item.submitter).name }}
+                        </v-btn>
+                    </template>
+                    <template v-slot:item.details="{ item }">
+                        <v-btn @click="showappDialog(item)" small dark color="warning">
+                            {{ $t("Details") }}
+                        </v-btn>
+                    </template>
+                    <template v-slot:item.action="{ item }">
+                        <v-menu right v-show="canTakeAction(item)">
+                            <template v-slot:activator="{ on, attrs }">
+                                <v-btn v-bind="attrs" color="success" outlined small dark v-on="on">
+                                    {{ $t("action") }}
+                                    <v-icon right>mdi-menu-down</v-icon>
+                                </v-btn>
+                            </template>
+                            <v-list dense style="max-width: 150px;">
+                                <v-list-item>
+                                    <v-list-item-content>
+                                        <v-btn class="mb-2" block color="warning" @click="showappDialog(item)">
+                                            <v-icon small left>mdi-folder-open-outline</v-icon>
+                                            {{ $t("Detail") }}
+                                        </v-btn>
+                                        <template v-show="!isCompleted(item)">
+                                            <v-btn v-show="canDeny(item)" block color="error" small class="mb-2"
+                                                @click="openDenyDialog(item)">
+                                                <v-icon left>mdi-close</v-icon>
+                                                {{ $t("Deny") }}
+                                            </v-btn>
+                                            <v-btn v-show="canAccept(item)" block color="success" small
+                                                @click="accept(item)">
+                                                <v-icon left>mdi-check</v-icon>
+                                                {{ $t("Accept") }}
+                                            </v-btn>
+                                        </template>
+                                    </v-list-item-content>
+                                </v-list-item>
+                            </v-list>
+                        </v-menu>
+                    </template>
+                    <template v-slot:[`item.qr_code`]="{ item }">
+                        <v-card class="qr-code-cell" elevation="0" width="80">
+                            <v-img :src="item.qr_code || './default.png'" contain height="80" width="80"
+                                class="qr-image" @click="showQRCode(item)" />
+                        </v-card>
+                    </template>
+                    <template v-slot:item.status="{ item }">
+                        <v-tooltip bottom v-if="!isCompleted(item)" color="teal darken-1">
+                            <template v-slot:activator="{ on, attrs }">
+                                <div class="d-flex align-center justify-center" v-bind="attrs" v-on="on">
+                                    <v-chip small :color="getStatusColor(item)" text-color="white" class="mr-2" label>
+                                        <v-icon left small>{{ getStatusIcon(item) }}</v-icon>
+                                        {{ getStatusText(item) }}
+                                    </v-chip>
+                                    <v-btn v-if="isStatusDenied(item)" icon x-small @click.stop="showReasonDialog(item)"
+                                        :disabled="!getLatestReason(item)">
+                                        <v-icon :color="getLatestReason(item) ? 'info' : 'grey lighten-1'" small>
+                                            mdi-information
+                                        </v-icon>
+                                    </v-btn>
+                                </div>
+                            </template>
+                            <span>{{ getManagerInfo(item) }}</span>
+                        </v-tooltip>
+                        <div v-else class="d-flex align-center justify-center">
+                            <v-chip small :color="getStatusColor(item)" text-color="white" class="mr-2">
+                                <v-icon left small>{{ getStatusIcon(item) }}</v-icon>
+                                {{ getStatusText(item) }}
+                            </v-chip>
+                            <v-btn v-if="isStatusDenied(item)" icon x-small @click.stop="showReasonDialog(item)"
+                                :disabled="!getLatestReason(item)">
+                                <v-icon :color="getLatestReason(item) ? 'info' : 'grey lighten-1'" small>
+                                    mdi-information
+                                </v-icon>
+                            </v-btn>
+                        </div>
+                    </template>
+                    <template v-slot:item.approval="{ item }"> <v-btn small text color="primary"
+                            @click="showApprovalInfo(item)" :disabled="!hasApprovalInfo(item)">
+                            <v-icon left small>mdi-clipboard-check</v-icon>
+                            {{ $t('Approval logs') }}
+                        </v-btn>
+                    </template>
+
+                    <template v-slot:item.nation="{ item }">
+                        {{ getLocalizedNation(item.nation) }}
+                    </template>
+                    <template v-slot:item.location="{ item }">
+                        {{ getLocationValue(item.location) }}
+                    </template>
+                    <template #[`header.details`]>
+                        {{ $t('Details') }}
+                    </template>
+                    <template #[`header.action`]>
+                        {{ $t('action') }}
+                    </template>
+                    <template #[`header.approval`]>
+                        {{ $t('Approval status') }}
+                    </template>
+                    <template #[`header.reason`]>
+                        {{ $t('Reason') }}
+                    </template>
+                    <template #[`header.qr_code`]>
+                        {{ $t('QR Code') }}
+                    </template>
+                    <template #[`header.status`]>
+                        <DsFilter :name="$t('Status')" :in-items="filterItems.status"
+                            @changed="updateFilter('status', $event)" />
+                    </template>
+                    <template #[`header.submitter`]>
+                        <DsFilter :name="$t('Submitter')" :in-items="filterItems.submitter"
+                            @changed="updateFilter('submitter', $event)" />
+                    </template>
+                    <template #[`header.name`]>
+                        <DsFilter :name="$t('Room Occupancy')" :in-items="filterItems.name"
+                            @changed="updateFilter('name', $event)" />
+                    </template>
+                    <template #[`header.key_in_date`]>
+                        <DsFilter :name="$t('Register date')" :in-items="filterItems.key_in_date"
+                            @changed="updateFilter('key_in_date', $event)" />
+                    </template>
+                    <template #[`header.room_no`]>
+                        <DsFilter :name="$t('Room no')" :in-items="filterItems.room_no"
+                            @changed="updateFilter('room_no', $event)" />
+                    </template>
+                    <template v-slot:item.room_no="{ item }">
+                        <div class="d-flex align-center justify-center">
+                            <v-badge :content="getRoomCount(item)" color="primary" overlap bordered offset-x="10"
+                                offset-y="10" v-if="getRoomCount(item) > 0">
+                                <v-icon>mdi-home</v-icon>
+                            </v-badge>
+                        </div>
+                    </template>
+                    <template v-slot:item.qr_code="{ item }">
+                        <v-btn v-if="item.qr_code" icon @click="showQRCode(item)"> <v-icon
+                                color="info">mdi-qrcode</v-icon> </v-btn>
+                    </template>
+                    <template v-slot:item.reason="{ item }">
+                        <div class="d-flex align-center justify-center">
+                            <v-tooltip bottom>
+                                <template v-slot:activator="{ on, attrs }">
+                                    <v-btn v-bind="attrs" v-on="on" icon small @click="showReasonText(item.reason)">
+                                        <v-icon small color="primary">mdi-text-box-search</v-icon>
+                                    </v-btn>
+                                </template>
+                                <span>{{ $t('Click to view full reason') }}</span>
+                            </v-tooltip>
+                        </div>
+                    </template>
+                </v-data-table>
+            </v-card>
+        </v-col>
+        <v-dialog v-model="appDialog" fullscreen hide-overlay transition="dialog-bottom-transition" persistent>
+            <v-card>
+                <v-form v-model="formValid" ref="appForm">
+                    <v-toolbar dark color="teal darken-2">
+                        <v-btn icon dark @click="appDialog = false">
+                            <v-icon>mdi-close</v-icon>
+                        </v-btn>
+                        <v-toolbar-title>
+                            {{ selectedItem ? $t('Request detail') : $t('Create request') }}
+                        </v-toolbar-title>
+                        <v-spacer></v-spacer>
+                        <v-btn color="primary" @click="saveSelectedApps" class="mr-2">
+                            <v-icon left>mdi-content-save</v-icon>
+                            {{ $t('Save') }}
+                        </v-btn>
+                    </v-toolbar>
+                    <v-container fluid class="pa-2">
+                        <VfaAppFlow v-if="isAppFlowVisible" v-show="true" ref="AppFlow"
+                            :key="selectedItem ? selectedItem.id : 'new-request'" appCode="dma"
+                            :empno="selectedItem ? submitterInfo.empno : activeUser.empno"
+                            :location="selectedItem ? submitterInfo.location : activeUser.location"
+                            @sendAppFlow="handleAppFlow" class="mb-4" style="font-size: 10px;"></VfaAppFlow>
+                        <v-card flat>
+                            <v-card-title class="subtitle-1 py-2 teal--text">
+                                <v-icon left color="teal">mdi-account-details</v-icon>
+                                {{ $t('Creator information') }}
+                            </v-card-title>
+                            <v-card-text>
+                                <v-row dense>
+                                    <v-col cols="12" sm="3">
+                                        <v-text-field :value="selectedItem ? submitterInfo.submit_date : today"
+                                            :label="$t('Key in')" readonly outlined dense disabled
+                                            prepend-inner-icon="mdi-calendar"></v-text-field>
+                                    </v-col>
+                                    <v-col cols="12" sm="3">
+                                        <v-text-field :value="selectedItem ? submitterInfo.name : activeUser.name"
+                                            :label="$t('Created Name')" outlined dense disabled></v-text-field>
+                                    </v-col>
+                                    <v-col cols="12" sm="3">
+                                        <v-text-field :value="selectedItem ? submitterInfo.dept : activeUser.dept"
+                                            :label="$t('Dept')" outlined dense disabled></v-text-field>
+                                    </v-col>
+                                    <v-col cols="12" sm="3">
+                                        <v-text-field :value="selectedItem ? submitterInfo.ext : activeUser.ext"
+                                            :label="$t('Phone number')" outlined dense disabled
+                                            prepend-inner-icon="mdi-phone"></v-text-field>
+                                    </v-col>
+                                </v-row>
+                            </v-card-text>
+                        </v-card>
+
+                        <v-card flat>
+                            <v-card-title class="subtitle-1 py-2 teal--text d-flex align-center">
+                                <v-icon left color="teal">mdi-account-circle</v-icon>
+                                {{ $t('Contact & Stay Information') }}
+                                <v-spacer></v-spacer>
+                                <template v-if="selectedItem">
+                                    <v-btn v-if="canDeny(selectedItem)" color="error" class="mr-2"
+                                        @click="openDenyDialog(selectedItem)">
+                                        <v-icon left>mdi-close</v-icon>
+                                        {{ $t("Deny") }}
+                                    </v-btn>
+                                    <v-btn v-if="canAccept(selectedItem)" color="success" class="mr-2"
+                                        @click="accept(selectedItem)">
+                                        <v-icon left>mdi-check</v-icon>
+                                        {{ $t("Accept") }}
+                                    </v-btn>
+                                </template>
+                            </v-card-title>
+                            <v-card-text>
+                                <v-col cols="12">
+                                    <v-textarea v-model="reason" :label="$t('Reason')" outlined auto-grow rows="1" dense
+                                        hide-details> </v-textarea>
+                                </v-col>
+                                <v-row dense v-for="(contact, index) in contacts" :key="index">
+                                    <v-col cols="12" class="d-flex align-center py-1">
+                                        <div class="grey--text text-caption mr-2">{{ $t('Contact') }} #{{ index + 1 }}
+                                        </div>
+                                        <v-btn color="success" x-small class="mr-2" @click="addContactAfter(index)"
+                                            :disabled="contacts.length >= 30"> <v-icon x-small left>mdi-plus</v-icon> {{
+                                            $t('Add') }} </v-btn>
+                                        <v-btn color="error" x-small @click="removeContactAt(index)"
+                                            :disabled="contacts.length <= 1"> <v-icon x-small left>mdi-minus</v-icon> {{
+                                            $t('Remove') }} </v-btn>
+                                    </v-col>
+                                    <v-col cols="12" sm="3" md="2">
+                                        <v-text-field v-model="contact.fullName" :rules="formRules.contact.fullName"
+                                            :label="$t('Full Name')" hide-details outlined dense></v-text-field>
+                                    </v-col>
+                                    <v-col cols="12" sm="6" md="1">
+                                        <v-combobox v-model="contact.location" :rules="formRules.contact.location"
+                                            :items="itemLoc" :label="$t('Location')" hide-details item-text="loc"
+                                            item-value="loc" outlined dense> </v-combobox>
+                                    </v-col>
+                                    <v-col cols="12" sm="6" md="2">
+                                        <v-radio-group v-model="contact.gender" row class="mt-0" hide-details>
+                                            <template v-slot:label>
+                                                <div class="teal--text font-weight-medium">{{ $t('Gender') }}</div>
+                                            </template>
+                                            <v-radio :label="$t('Male')" value="M">
+                                                <template v-slot:label>
+                                                    <v-icon left small color="blue">mdi-gender-male</v-icon>
+                                                    {{ $t('Male') }}
+                                                </template>
+                                            </v-radio>
+                                            <v-radio :label="$t('Female')" value="F">
+                                                <template v-slot:label>
+                                                    <v-icon left small color="pink">mdi-gender-female</v-icon>
+                                                    {{ $t('Female') }}
+                                                </template>
+                                            </v-radio>
+                                        </v-radio-group>
+                                    </v-col>
+                                    <v-col cols="12" sm="6" md="2">
+                                        <v-select v-model="contact.nationality" :rules="formRules.contact.nationality"
+                                            :items="formattedNationalities" item-text="text" item-value="value"
+                                            :label="$t('Nationality')" hide-details outlined dense clearable>
+                                        </v-select>
+                                    </v-col>
+                                    <v-col cols="12" sm="6" md="1">
+                                        <v-menu v-model="contact.checkStartDate" :close-on-content-click="false"
+                                            transition="scale-transition" offset-y min-width>
+                                            <template v-slot:activator="{ on, attrs }">
+                                                <v-text-field hide-details v-model="contact.startDate"
+                                                    :label="$t('Start date')" :rules="formRules.contact.startDate"
+                                                    readonly v-bind="attrs" v-on="on" outlined dense clearable
+                                                    @click:clear="contact.startDate = ''"> </v-text-field>
+                                            </template>
+                                            <v-date-picker v-model="contact.startDate" :min="today"
+                                                @input="contact.checkStartDate = false"> </v-date-picker>
+                                        </v-menu>
+                                    </v-col>
+                                    <v-col cols="12" sm="6" md="1" v-if="contact.location.loc !== 'VG'">
+                                        <v-menu v-model="contact.checkEndDate" :close-on-content-click="false"
+                                            transition="scale-transition" offset-y min-width>
+                                            <template v-slot:activator="{ on, attrs }">
+                                                <v-text-field hide-details v-model="contact.endDate"
+                                                    :label="$t('End date')" readonly v-bind="attrs" v-on="on" outlined
+                                                    dense clearable @click:clear="contact.endDate = ''"> </v-text-field>
+                                            </template>
+                                            <v-date-picker v-model="contact.endDate" :min="contact.startDate"
+                                                @input="contact.checkEndDate = false"> </v-date-picker>
+                                        </v-menu>
+                                    </v-col>
+                                    <v-col cols="12" sm="6" md="3">
+                                        <v-textarea v-model="contact.notes" :label="$t('Notes')" outlined auto-grow
+                                            rows="1" dense hide-details> </v-textarea>
+                                    </v-col>
+                                </v-row>
+
+                            </v-card-text>
+                        </v-card>
+                    </v-container>
+                </v-form>
+            </v-card>
+        </v-dialog>
+        <v-dialog v-model="submitterDialog" max-width="400">
+            <v-card>
+                <v-card-title class="headline primary white--text py-3">
+                    <v-icon left color="white">mdi-account-details</v-icon>
+                    {{ $t('Submitter Information') }}
+                    <v-spacer></v-spacer>
+                    <v-btn icon dark @click="submitterDialog = false">
+                        <v-icon>mdi-close</v-icon>
+                    </v-btn>
+                </v-card-title>
+                <v-card-text class="pt-2">
+                    <v-list dense>
+                        <v-list-item>
+                            <v-list-item-avatar size="30" class="my-1">
+                                <v-icon small>mdi-card-account-details</v-icon>
+                            </v-list-item-avatar>
+                            <v-list-item-content>
+                                <v-list-item-subtitle class="text-caption">{{ $t('Employee No')
+                                    }}</v-list-item-subtitle>
+                                <v-list-item-title class="font-weight-medium">{{ selectedSubmitter.empno
+                                    }}</v-list-item-title>
+                            </v-list-item-content>
+                        </v-list-item>
+
+                        <v-divider></v-divider>
+                        <!-- thêm name -->
+                        <v-list-item>
+                            <v-list-item-avatar size="30" class="my-1">
+                                <v-icon small>mdi-account-circle</v-icon>
+                            </v-list-item-avatar>
+                            <v-list-item-content>
+                                <v-list-item-subtitle class="text-caption">{{ $t('Name') }}</v-list-item-subtitle>
+                                <v-list-item-title class="font-weight-medium">{{ selectedSubmitter.name
+                                    }}</v-list-item-title>
+                            </v-list-item-content>
+                        </v-list-item>
+                        <v-divider></v-divider>
+
+                        <v-list-item>
+                            <v-list-item-avatar size="30" class="my-1">
+                                <v-icon small>mdi-domain</v-icon>
+                            </v-list-item-avatar>
+                            <v-list-item-content>
+                                <v-list-item-subtitle class="text-caption">{{ $t('Department') }}</v-list-item-subtitle>
+                                <v-list-item-title class="font-weight-medium">{{ selectedSubmitter.dept
+                                    }}</v-list-item-title>
+                            </v-list-item-content>
+                        </v-list-item>
+
+                        <v-divider></v-divider>
+
+                        <v-list-item>
+                            <v-list-item-avatar size="30" class="my-1">
+                                <v-icon small>mdi-email</v-icon>
+                            </v-list-item-avatar>
+                            <v-list-item-content>
+                                <v-list-item-subtitle class="text-caption">{{ $t('Email') }}</v-list-item-subtitle>
+                                <v-list-item-title class="font-weight-medium">{{ selectedSubmitter.email
+                                    }}</v-list-item-title>
+                            </v-list-item-content>
+                        </v-list-item>
+
+                        <v-divider></v-divider>
+
+                        <v-list-item>
+                            <v-list-item-avatar size="30" class="my-1">
+                                <v-icon small>mdi-phone</v-icon>
+                            </v-list-item-avatar>
+                            <v-list-item-content>
+                                <v-list-item-subtitle class="text-caption">{{ $t('Extension') }}</v-list-item-subtitle>
+                                <v-list-item-title class="font-weight-medium">{{ selectedSubmitter.ext
+                                    }}</v-list-item-title>
+                            </v-list-item-content>
+                        </v-list-item>
+                        <v-divider></v-divider>
+
+                        <v-list-item>
+                            <v-list-item-avatar size="30" class="my-1">
+                                <v-icon small>mdi-calendar-clock</v-icon>
+                            </v-list-item-avatar>
+                            <v-list-item-content>
+                                <v-list-item-subtitle class="text-caption">{{ $t('Submit Date')
+                                    }}</v-list-item-subtitle>
+                                <v-list-item-title class="font-weight-medium">{{ selectedSubmitter.submit_date
+                                    }}</v-list-item-title>
+                            </v-list-item-content>
+                        </v-list-item>
+                    </v-list>
+                </v-card-text>
+            </v-card>
+        </v-dialog>
+        <v-dialog v-model="noteDialog" max-width="400">
+            <v-card>
+                <v-card-title class="headline primary white--text py-3">
+                    <v-icon left color="white">mdi-note-text</v-icon>
+                    {{ $t('Note Details') }}
+                    <v-spacer></v-spacer>
+                    <v-btn icon dark @click="noteDialog = false">
+                        <v-icon>mdi-close</v-icon>
+                    </v-btn>
+                </v-card-title>
+                <v-card-text class="pt-2">
+                    <v-list dense>
+                        <v-list-item>
+                            <v-list-item-content>
+                                <v-list-item-subtitle class="text-caption">{{ $t('Note Content')
+                                    }}</v-list-item-subtitle>
+                                <v-list-item-title class="font-weight-medium note-text">{{ selectedNote || $t('No note available') }}</v-list-item-title>
+                            </v-list-item-content>
+                        </v-list-item>
+                    </v-list>
+                </v-card-text>
+            </v-card>
+        </v-dialog>
+        <v-dialog v-model="addressDialog" max-width="400">
+            <v-card>
+                <v-card-title class="headline primary white--text py-3">
+                    <v-icon left color="white">mdi-map-marker</v-icon>
+                    {{ $t('Address Details') }}
+                    <v-spacer></v-spacer>
+                    <v-btn icon dark @click="addressDialog = false">
+                        <v-icon>mdi-close</v-icon>
+                    </v-btn>
+                </v-card-title>
+                <v-card-text class="pt-2">
+                    <v-list dense>
+                        <v-list-item>
+                            <v-list-item-content>
+                                <v-list-item-subtitle class="text-caption">{{ $t('Address Content')
+                                    }}</v-list-item-subtitle>
+                                <v-list-item-title class="font-weight-medium note-text">{{ selectedAddress || $t('No address available') }}</v-list-item-title>
+                            </v-list-item-content>
+                        </v-list-item>
+                    </v-list>
+                </v-card-text>
+            </v-card>
+        </v-dialog>
+        <v-dialog v-model="approvalDialog" max-width="1200px">
+            <v-card>
+                <v-card-title class="headline teal darken-1 white--text py-3">
+                    <v-icon left color="white">mdi-clipboard-check</v-icon>
+                    {{ $t('Approval Information') }}
+                    <v-spacer></v-spacer>
+                    <v-btn icon dark @click="approvalDialog = false">
+                        <v-icon>mdi-close</v-icon>
+                    </v-btn>
+                </v-card-title>
+                <v-card-text class="pa-4">
+                    <v-simple-table>
+                        <template v-slot:default>
+                            <thead>
+                                <tr>
+                                    <th>{{ $t('Level') }}</th>
+                                    <th>{{ $t('Employee No') }}</th>
+                                    <th>{{ $t('Name') }}</th>
+                                    <th>{{ $t('Email') }}</th>
+                                    <th>{{ $t('Status') }}</th>
+                                    <th>{{ $t('Date') }}</th>
+                                    <th>{{ $t('Reason') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="(approval, index) in selectedApprovals" :key="index">
+                                    <td>{{ getApprovalLevel(index) }}</td>
+                                    <td>{{ approval.empno }}</td>
+                                    <td>{{ approval.name }}</td>
+                                    <td>{{ approval.email }}</td>
+                                    <td>
+                                        <v-chip v-if="approval.stt" small
+                                            :color="getApprovalStatusColor(approval.stt)">{{ approval.stt }}</v-chip>
+                                    </td>
+                                    <td>{{ approval.date }}</td>
+                                    <td>{{ approval.reason }}</td>
+                                </tr>
+                            </tbody>
+                        </template>
+                    </v-simple-table>
+                </v-card-text>
+            </v-card>
+        </v-dialog>
+        <v-dialog v-model="denyDialog" max-width="500">
+            <v-card>
+                <v-card-title class="headline error white--text py-3">
+                    <v-icon left color="white">mdi-close-circle</v-icon>
+                    {{ $t('Deny Request') }}
+                    <v-spacer></v-spacer>
+                    <v-btn icon dark @click="denyDialog = false">
+                        <v-icon>mdi-close</v-icon>
+                    </v-btn>
+                </v-card-title>
+                <v-card-text class="pt-4">
+                    <v-textarea v-model="denyReason" :label="$t('Reason for denial')"
+                        :placeholder="$t('Please enter reason for denial')" rows="3" outlined required
+                        :rules="[v => !!v || $t('Reason is required')]"></v-textarea>
+                </v-card-text>
+                <v-card-actions class="pb-4 px-4">
+                    <v-btn color="grey darken-1" dark @click="denyDialog = false">
+                        <v-icon left>mdi-close</v-icon>
+                        {{ $t('Cancel') }}
+                    </v-btn>
+                    <v-spacer></v-spacer>
+                    <v-btn color="success" :disabled="!denyReason" @click="confirmDeny">
+                        <v-icon left>mdi-content-save</v-icon>
+                        {{ $t('Confirm Deny') }}
+                    </v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+        <v-dialog v-model="acceptDialog" max-width="400">
+            <v-card>
+                <v-card-title class="headline success white--text py-3">
+                    <v-icon left color="white">mdi-check-circle</v-icon>
+                    {{ $t('Accept Request') }}
+                    <v-spacer></v-spacer>
+                    <v-btn icon dark @click="acceptDialog = false">
+                        <v-icon>mdi-close</v-icon>
+                    </v-btn>
+                </v-card-title>
+                <v-card-text class="pt-4 text-center">
+                    <p class="subtitle-1">{{ $t('Are you sure you want to accept this request?') }}</p>
+                </v-card-text>
+                <v-card-actions class="pb-4 px-4">
+                    <v-btn color="grey darken-1" dark @click="acceptDialog = false">
+                        <v-icon left>mdi-close</v-icon>
+                        {{ $t('Cancel') }}
+                    </v-btn>
+                    <v-spacer></v-spacer>
+                    <v-btn color="success" @click="confirmAccept">
+                        <v-icon left>mdi-check</v-icon>
+                        {{ $t('Confirm Accept') }}
+                    </v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+        <v-dialog v-model="reasonDialog" max-width="500">
+            <v-card>
+                <v-card-title class="headline teal darken-1 white--text py-3">
+                    <v-icon left color="white">mdi-comment-text</v-icon>
+                    {{ $t('Reason Details') }}
+                    <v-spacer></v-spacer>
+                    <v-btn icon dark @click="reasonDialog = false">
+                        <v-icon>mdi-close</v-icon>
+                    </v-btn>
+                </v-card-title>
+                <v-card-text class="pt-4">
+                    <div class="reason-content">
+                        {{ selectedReason || $t('No reason available') }}
+                    </div>
+                </v-card-text>
+            </v-card>
+        </v-dialog>
+        <!-- Thêm dialog QR code -->
+        <v-dialog v-model="qrDialog" max-width="400">
+            <v-card>
+                <v-card-title class="headline primary white--text py-3">
+                    <v-icon left color="white">mdi-qrcode</v-icon>
+                    {{ $t('QR Code') }}
+                    <v-spacer></v-spacer>
+                    <v-btn icon dark @click="qrDialog = false">
+                        <v-icon>mdi-close</v-icon>
+                    </v-btn>
+                </v-card-title>
+                <v-card-text class="text-center pa-4">
+                    <v-progress-circular v-if="isLoadingQR" indeterminate color="primary"></v-progress-circular>
+                    <template v-else>
+                        <h3 v-if="selectedQRName" class="mb-4">{{ selectedQRName }}</h3>
+                        <img :src="selectedQRCode" alt="QR Code" style="max-width: 250px" class="qr-code-img" />
+                    </template>
+                </v-card-text>
+                <v-card-actions class="pb-4 px-4">
+                    <v-spacer></v-spacer>
+                    <v-btn color="primary" @click="downloadQRCode" :disabled="isLoadingQR">
+                        <v-icon left>mdi-download</v-icon>
+                        {{ $t('Download') }}
+                    </v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+        <v-dialog v-model="nameListDialog" max-width="900">
+            <v-card>
+                <v-card-title class="headline teal darken-2 white--text py-3 d-flex align-center">
+                    <v-icon left color="white">mdi-account-group</v-icon>
+                    {{ $t('Occupant List') }}
+                    <v-spacer></v-spacer>
+                    <v-btn icon dark @click="nameListDialog = false">
+                        <v-icon>mdi-close</v-icon>
+                    </v-btn>
+                </v-card-title>
+                <v-card-text class="pa-4">
+                    <v-row>
+                        <v-col cols="12" sm="6" md="4" v-for="(person, index) in selectedNames" :key="index">
+                            <v-card class="mx-auto person-card"
+                                :class="{ 'male-card': person.sex === 'M', 'female-card': person.sex === 'F' }"
+                                elevation="2">
+                                <v-card-title class="py-2 px-4">
+                                    <v-avatar size="32"
+                                        :color="person.sex === 'M' ? 'blue lighten-4' : 'pink lighten-4'" class="mr-2">
+                                        <v-icon :color="person.sex === 'M' ? 'blue darken-2' : 'pink darken-2'">
+                                            {{ person.sex === 'M' ? 'mdi-face-man' : 'mdi-face-woman' }}
+                                        </v-icon>
+                                    </v-avatar>
+                                    <span class="subtitle-1 font-weight-medium">{{ person.name }}</span>
+                                </v-card-title>
+
+                                <v-divider></v-divider>
+
+                                <v-list dense>
+                                    <v-list-item>
+                                        <v-list-item-icon class="mr-2">
+                                            <v-icon small color="teal">mdi-calendar-range</v-icon>
+                                        </v-list-item-icon>
+                                        <v-list-item-content class="py-2">
+                                            <v-list-item-title class="caption">
+                                                {{ person.start_date }} - {{ person.end_date }}
+                                            </v-list-item-title>
+                                        </v-list-item-content>
+                                    </v-list-item>
+
+                                    <v-list-item v-if="person.room_no">
+                                        <v-list-item-icon class="mr-2">
+                                            <v-icon small color="teal">mdi-door</v-icon>
+                                        </v-list-item-icon>
+                                        <v-list-item-content class="py-1">
+                                            <v-list-item-title class="caption">
+                                                {{ $t('Room') }}: {{ person.room_no }}
+                                            </v-list-item-title>
+                                        </v-list-item-content>
+                                    </v-list-item>
+
+                                    <v-list-item v-if="person.note">
+                                        <v-list-item-icon class="mr-2">
+                                            <v-icon small color="teal">mdi-note-text</v-icon>
+                                        </v-list-item-icon>
+                                        <v-list-item-content class="py-1">
+                                            <v-list-item-title class="caption">
+                                                {{ person.note }}
+                                            </v-list-item-title>
+                                        </v-list-item-content>
+                                    </v-list-item>
+                                </v-list>
+
+                                <v-divider></v-divider>
+
+                                <v-card-actions class="pa-4">
+                                    <v-spacer></v-spacer>
+                                    <v-btn v-if="person.qr_path" color="primary" small @click="viewPersonQR(person)"
+                                        class="px-4">
+                                        <v-icon left small>mdi-qrcode</v-icon>
+                                        {{ $t('View QR') }}
+                                    </v-btn>
+                                </v-card-actions>
+                            </v-card>
+                        </v-col>
+                    </v-row>
+                </v-card-text>
+            </v-card>
+        </v-dialog>
+        <v-dialog v-model="occupantDialog" max-width="900">
+            <v-card>
+                <v-card-title class="headline primary white--text py-3">
+                    <v-icon left color="white">mdi-account-group</v-icon>
+                    {{ $t('Room Occupants Detail') }}
+                    <v-spacer></v-spacer>
+                    <v-btn icon dark @click="occupantDialog = false">
+                        <v-icon>mdi-close</v-icon>
+                    </v-btn>
+                </v-card-title>
+                <v-card-text class="pt-4">
+                    <v-data-table :headers="occupantHeaders" :items="selectedOccupants" dense>
+                        <template v-slot:item.sex="{ item }">
+                            <v-icon :color="item.sex === 'M' ? 'blue' : 'pink'" small>
+                                {{ item.sex === 'M' ? 'mdi-gender-male' : 'mdi-gender-female' }}
+                            </v-icon>
+                            {{ item.sex === 'M' ? $t('Male') : $t('Female') }}
+                        </template>
+                    </v-data-table>
+                </v-card-text>
+            </v-card>
+        </v-dialog>
+        <v-dialog v-model="nameDetailsDialog" max-width="1200">
+            <v-card>
+                <v-card-title class="headline teal darken-1 white--text py-3">
+                    <v-icon left color="white">mdi-account-details</v-icon>
+                    {{ $t('Occupant Details') }}
+                    <v-spacer></v-spacer>
+                    <v-btn icon dark @click="nameDetailsDialog = false">
+                        <v-icon>mdi-close</v-icon>
+                    </v-btn>
+                </v-card-title>
+                <v-card-text class="pa-4">
+                    <v-data-table :headers="nameDetailsHeaders" :items="selectedNameDetails" class="elevation-3">
+                        <template v-slot:header.selected>
+                            <v-checkbox v-model="selectAll" @change="toggleSelectAll"></v-checkbox>
+                        </template>
+
+                        <template v-slot:item.selected="{ item }">
+                            <v-checkbox v-model="item.selected"></v-checkbox>
+                        </template>
+
+                        <template v-slot:item.sex="{ item }">
+                            <v-icon :color="item.gender === 'M' ? 'blue' : 'pink'">
+                                {{ item.gender === 'M' ? 'mdi-gender-male' : 'mdi-gender-female' }}
+                            </v-icon>
+                            {{ item.gender === 'M' ? $t('Male') : $t('Female') }}
+                        </template>
+
+                        <template v-slot:item.nation="{ item }">
+                            {{ getLocalizedNation(item.nation) }}
+                        </template>
+                        <template v-slot:item.room_no="{ item }">
+                            <div class="d-flex align-center">
+                                <template v-if="editingNameRoom === item.name">
+                                    <v-text-field v-model="item.room_no" dense hide-details class="room-no-input mr-2"
+                                        @keypress.enter="handleNameRoomUpdate(item)" autofocus></v-text-field>
+                                    <v-btn icon x-small color="success" @click="handleNameRoomUpdate(item)"
+                                        class="mr-1">
+                                        <v-icon small>mdi-check</v-icon>
+                                    </v-btn>
+                                    <v-btn icon x-small color="error" @click="cancelEditingNameRoom">
+                                        <v-icon small>mdi-close</v-icon>
+                                    </v-btn>
+                                </template>
+                                <template v-else>
+                                    <span class="mr-2">{{ item.room_no }}</span>
+                                    <v-btn icon x-small @click="startEditingNameRoom(item)">
+                                        <v-icon small color="primary">mdi-pencil</v-icon>
+                                    </v-btn>
+                                </template>
+                            </div>
+                        </template>
+                        <template v-slot:footer.prepend>
+                            <v-col cols="12" sm="4" class="d-flex align-center pa-0">
+                                <v-btn color="primary" @click="updateSelectedRooms"
+                                    v-if="selectedNameDetails.some(item => item.selected)">
+                                    <v-icon left>mdi-door</v-icon>
+                                    {{ $t('Set Room') }}
+                                </v-btn>
+                            </v-col>
+                        </template>
+                        <template #[`header.name`]>
+                            {{ $t('Name') }}
+                        </template>
+                        <template #[`header.sex`]>
+                            {{ $t('Gender') }}
+                        </template>
+                        <template #[`header.nation`]>
+                            {{ $t('Nationality') }}
+                        </template>
+                        <template #[`header.start_date`]>
+                            {{ $t('Start Date') }}
+                        </template>
+                        <template #[`header.end_date`]>
+                            {{ $t('End Date') }}
+                        </template>
+                        <template #[`header.note`]>
+                            {{ $t('Note') }}
+                        </template>
+                        <template #[`header.room_no`]>
+                            {{ $t('Room No') }}
+                        </template>
+
+                    </v-data-table>
+                </v-card-text>
+            </v-card>
+        </v-dialog>
+        <v-dialog v-model="reasonTextDialog" max-width="500">
+            <v-card>
+                <v-card-title class="headline teal darken-1 white--text py-3">
+                    <v-icon left color="white">mdi-text-box</v-icon>
+                    {{ $t('Reason Details') }}
+                    <v-spacer></v-spacer>
+                    <v-btn icon dark @click="reasonTextDialog = false">
+                        <v-icon>mdi-close</v-icon>
+                    </v-btn>
+                </v-card-title>
+                <v-card-text class="pt-4">
+                    {{ selectedReasonText || $t('No reason available') }}
+                </v-card-text>
+            </v-card>
+        </v-dialog>
+    </v-row>
+</template>
+<script>
+// import VfaAppFlow from "../../../@global-component/vfa-updated2";
+ import VfaAppFlow from 'D:/source/@global-component/vfa-updated2.vue';
+import DSFilter from '@/components/DsFilter.vue'
+import dayjs from "dayjs";
+import * as XLSX from 'xlsx';
+import QRCode from 'qrcode'
+
+export default {
+    components: { DSFilter, VfaAppFlow },
+    data() {
+        return {
+            id: '',
+            today: dayjs().format('YYYY-MM-DD'),
+            loading: true,
+            api: 'http://gmo021.cansportsvg.com/api/vgDorm/',
+            msgApi: "http://gmo021.cansportsvg.com/api/msg-center/sendOutMsg",
+            storage_api: "http://gmo021.cansportsvg.com/api/vgDorm/getQRCode/",
+            headers: [
+                { text: this.$t('Action'), value: "action", sortable: false, align: 'center' },
+                { text: this.$t('Details'), value: "details", sortable: false, align: 'center' },
+                { text: this.$t('Submitter'), value: "submitter", sortable: false, align: 'center' },
+                { text: this.$t('Register date'), value: "key_in_date", sortable: false, align: 'center' },
+                { text: this.$t('Room Occupancy'), value: "name", sortable: false, align: 'center' },
+                { text: this.$t('Room No'), value: "room_no", sortable: false, align: 'center' },
+                { text: this.$t('Reason'), value: 'reason', align: 'center', },
+                // { text: this.$t('QR'), value: "qr_code", sortable: false, align: 'center' },
+                { text: this.$t('Status'), value: "status", sortable: false, align: 'center' },
+                { text: this.$t('Approval status'), value: "approval", sortable: false, align: 'center' },
+            ],
+            dromData: [],
+            activeUser: {
+                name: '',
+                dept: '',
+                ext: '',
+            },
+            search: '',
+            appDialog: false,
+            nameRules: [
+                v => !!v || this.$t('Name is required'),
+                v => v.length >= 2 || this.$t('Name must be at least 2 characters')
+            ],
+            nationalityList: [],
+            statusFilter: null, // Change from 0 to null to allow watcher to work properly
+            submitterDialog: false,
+            selectedSubmitter: {},
+            noteDialog: false,
+            selectedNote: null,
+            selectedNoteName: null,
+            addressDialog: false,
+            selectedAddress: null,
+            approvalDialog: false,
+            selectedApprovals: [],
+            denyDialog: false,
+            denyReason: '',
+            selectedItem: null,
+            acceptDialog: false,
+            selectedRequestToAccept: null,
+            listDeptManagerLvl1: [],
+            dataAppFlow: [],
+            reasonDialog: false,
+            selectedReason: null,
+            filters: {},
+            filterItems: {
+                status: [],
+                submitter: [],
+                name: [],
+                key_in_date: [],
+                room_no: [],
+            },
+            forceUpdate: 0,
+            contacts: [{
+                fullName: '',
+                location: '',
+                nationality: '',
+                gender: 'M',
+                startDate: '',
+                endDate: '',
+                notes: '',
+                checkStartDate: false,
+                checkEndDate: false,
+            }],
+            reason: '',
+            itemLoc: [],
+            editingRoomId: null, // Thêm biến để theo dõi phòng đang được chỉnh sửa
+            qrDialog: false,
+            selectedQRCode: null,
+            selectedQRName: null,
+            isLoadingQR: false,
+            nameListDialog: false,
+            selectedNames: [],
+            occupantDialog: false,
+            selectedOccupants: [],
+            occupantHeaders: [
+                { text: this.$t('Name'), value: 'name', align: 'start' },
+                { text: this.$t('Gender'), value: 'sex', align: 'center' },
+                { text: this.$t('Nation'), value: 'nation', align: 'center' },
+                { text: this.$t('Start Date'), value: 'start_date', align: 'center' },
+                { text: this.$t('End Date'), value: 'end_date', align: 'center' },
+                { text: this.$t('Note'), value: 'note', align: 'center' },
+            ],
+            nameDetailsDialog: false,
+            selectedNameDetails: [],
+            nameDetailsHeaders: [
+                { text: '', value: 'selected', width: '50px', sortable: false },
+                { text: this.$t('Name'), value: 'name', align: 'start' },
+                { text: this.$t('Gender'), value: 'sex', align: 'center' },
+                { text: this.$t('Nationality'), value: 'nation', align: 'center' },
+                { text: this.$t('Start Date'), value: 'start_date', align: 'center' },
+                { text: this.$t('End Date'), value: 'end_date', align: 'center' },
+                { text: this.$t('Note'), value: 'note', align: 'center' },
+                { text: this.$t('Room No'), value: 'room_no', align: 'center' },
+            ],
+            reasonTextDialog: false,
+            selectedReasonText: null,
+            editingNameRoom: null,
+            editingItem: null,
+            isComponentReady: false, // Add this flag
+            submitterInfo: {
+                submit_date: '',
+                name: '',
+                dept: '',
+                ext: '',
+                empno: '',  // Add empno field
+                location: '' // Add location field
+            },
+            isDevelopment: process.env.NODE_ENV === 'development',
+            selectAll: false,
+            formRules: {
+                contact: {
+                    fullName: [v => !!v || this.$t('Full name is required')],
+                    location: [v => !!v || this.$t('Location is required')],
+                    nationality: [v => !!v || this.$t('Nationality is required')],
+                    startDate: [v => !!v || this.$t('Start date is required')],
+                    endDate: [
+                        v => !v || (v && v >= this.contacts[0].startDate) || this.$t('End date must be after start date')
+                    ]
+                }
+            },
+            formValid: false
+        }
+    },
+    async created() {
+        if (this.$session.has("dma")) {
+            this.activeUser = this.$session.get("dma");
+            this.isComponentReady = true;
+        }
+    },
+    computed: {
+        isAppFlowVisible() {
+            return (this.selectedItem && this.submitterInfo.empno) ||
+                (!this.selectedItem && this.activeUser && this.activeUser.empno);
+        },
+        filteredDormData() {
+            let filtered = this.statusFilter === 0 ? [...this.dromData] :
+                this.dromData.filter(item => {
+                    try {
+                        const status = JSON.parse(item.status);
+                        const currentUserEmpno = this.activeUser.empno;
+
+                        if (this.statusFilter === 1) {
+                            if (!this.dataAppFlow || !currentUserEmpno) return false;
+
+                            const userLevels = {
+                                isLevel1: this.dataAppFlow[0]?.managers.some(m => {
+                                    const hasDeptsAccess = m.dept_code?.includes(JSON.parse(item.submitter).dept);
+
+                                    const isManagerOrDeputy =
+                                        m.empno === currentUserEmpno ||
+                                        m.deputies?.some(d => d.empno === currentUserEmpno && d.status === true);
+
+                                    return hasDeptsAccess && isManagerOrDeputy;
+                                }),
+                                isLevel2: this.dataAppFlow[1]?.managers.some(m =>
+                                    m.empno === currentUserEmpno ||
+                                    m.deputies?.some(d => d.empno === currentUserEmpno && d.status === true)
+                                ),
+                                isLevel3: this.dataAppFlow[2]?.managers.some(m =>
+                                    m.empno === currentUserEmpno ||
+                                    m.deputies?.some(d => d.empno === currentUserEmpno && d.status === true)
+                                ),
+                                isLevel4: this.dataAppFlow[3]?.managers.some(m =>
+                                    m.empno === currentUserEmpno ||
+                                    m.deputies?.some(d => d.empno === currentUserEmpno && d.status === true)
+                                )
+                            };
+
+                            const currentLevel = this.getCurrentApprovalLevel(status);
+
+                            return (currentLevel === 1 && userLevels.isLevel1) ||
+                                (currentLevel === 2 && userLevels.isLevel2) ||
+                                (currentLevel === 3 && userLevels.isLevel3) ||
+                                (currentLevel === 4 && userLevels.isLevel4);
+                        }
+
+                        if (this.statusFilter === 2) {
+                            // Check for completed status
+                            const isCompleted = status[3]?.gm === "true" && status[3]?.stt === "accept";
+                            if (isCompleted) return false;
+
+                            // Check for denied status at any level
+                            const isDenied = status.some(s => s.stt === "deny");
+                            if (isDenied) return false;
+
+                            // Check for processing status
+                            return (
+                                (status[2]?.smp === "true" && status[2]?.stt === "accept") ||
+                                (status[1]?.ga === "true" && status[1]?.stt === "accept") ||
+                                (status[0].dept === "true" && status[0].stt === "accept")
+                            );
+                        }
+                        if (this.statusFilter === 3) {
+                            return status[3]?.gm === "true" && status[3]?.stt === "accept" &&
+                                status[2]?.smp === "true" && status[2]?.stt === "accept" &&
+                                status[1]?.ga === "true" && status[1]?.stt === "accept" &&
+                                status[0].dept === "true" && status[0].stt === "accept";
+                        }
+                        if (this.statusFilter === 4) {
+                            return status.some(s => s.stt === "deny" || s.stt === "cancel");
+                        }
+                        return false;
+                    } catch (error) {
+                        console.error('Error filtering data:', error, item);
+                        return false;
+                    }
+                });
+
+            // Apply column filters
+            if (Object.keys(this.filters).length) {
+                filtered = filtered.filter(item => {
+                    return Object.entries(this.filters).every(([key, values]) => {
+                        if (!values || !values.length) return true;
+
+                        switch (key) {
+                            case 'submitter':
+                                const submitter = JSON.parse(item[key]);
+                                const submitterValue = submitter.empno + ' - ' + submitter.name;
+                                return values.includes(submitterValue);
+
+                            case 'name':
+                                const nameArr = JSON.parse(item[key]);
+                                const nameValue = nameArr.length + ' ' + this.$t('People');
+                                return values.includes(nameValue);
+
+                            case 'key_in_date':
+                                const formattedDate = dayjs(item[key]).format('YYYY-MM-DD');
+                                return values.includes(formattedDate);
+
+                            case 'room_no':
+                                const roomNo = item[key] || '-';
+                                return values.includes(roomNo);
+
+                            case 'status':
+                                const statusValue = this.getStatusFilterValue(item[key]);
+                                return values.includes(statusValue);
+
+                            default:
+                                return values.includes(item[key]);
+                        }
+                    });
+                });
+            }
+
+            // Apply search filter last
+            if (this.search?.trim()) {
+                const searchTerm = this.search.toLowerCase().trim();
+                filtered = filtered.filter(item => {
+                    try {
+                        const submitter = JSON.parse(item.submitter);
+                        // Search in all relevant fields
+                        return [
+                            item.name,
+                            item.ic_no,
+                            item.birth_day,
+                            item.sex,
+                            item.marriage,
+                            item.phone,
+                            item.nation,
+                            item.email,
+                            item.address,
+                            item.location,
+                            item.in_date,
+                            item.note,
+                            submitter.empno,
+                            submitter.name,
+                            submitter.dept,
+                            submitter.email,
+                            submitter.ext
+                        ].some(field =>
+                            field && field.toString().toLowerCase().includes(searchTerm)
+                        );
+                    } catch (error) {
+                        console.error('Error in search filter:', error);
+                        return false;
+                    }
+                });
+            }
+
+            return filtered;
+        },
+        formattedNationalities() {
+            return this.nationalityList.map(item => {
+                try {
+                    const nationObj = JSON.parse(item.nation.trim());
+                    return {
+                        text: nationObj[this.$i18n.locale] || nationObj['en'], // Fallback to English if current locale not found
+                        value: item.id
+                    };
+                } catch (error) {
+                    console.error('Error parsing nation:', error);
+                    return {
+                        text: '',
+                        value: item.id
+                    };
+                }
+            }).filter(item => item.text); // Remove items with empty text
+        },
+        canEditRoomNo() {
+            // Check if current user is in level2 (GA) managers
+            return this.dataAppFlow[1]?.managers.some(m =>
+                m.empno === this.activeUser.empno
+            );
+        },
+        isLevel1User() {
+            // Check if current user is in level1 managers only
+            return this.dataAppFlow?.[0]?.managers.some(m =>
+                m.empno === this.activeUser.empno
+            );
+        },
+        canSeeFloorPlan() {
+            // Show button only for level 2,3,4 managers
+            const currentUserEmpno = this.activeUser.empno;
+            return this.dataAppFlow && (
+                this.dataAppFlow[1]?.managers.some(m => m.empno === currentUserEmpno) || // level 2
+                this.dataAppFlow[2]?.managers.some(m => m.empno === currentUserEmpno) || // level 3 
+                this.dataAppFlow[3]?.managers.some(m => m.empno === currentUserEmpno)    // level 4
+            );
+        },
+    },
+    methods: {
+        openFloorPlan() {
+            const url = "https://10.1.16.40:5001/oo/r/12I6FvHqDiTPSL4tpkSe1imdM718RpLA"
+            window.open(url, '_blank');
+        },
+        async getLoc() {
+            try {
+                const res = await this.$axios.get(this.api + 'getDormLoc');
+                this.itemLoc = res.data.dormLoc;
+            } catch (error) {
+                console.log(error);
+            }
+        },
+        async getNation() {
+            try {
+                const res = await this.$axios.get(this.api + 'getDormNation');
+                this.nationalityList = res.data.dormNation
+            } catch (error) {
+                console.log(error);
+            }
+        },
+        handleAppFlow(appFlow) {
+            console.log(appFlow);
+            this.dataAppFlow = appFlow.map((item, index) => ({
+                level: "level" + (index + 1),
+                managers: item.managers.map((x) => {
+                    return { email: x.email, empno: x.empno, name: x.name, dept_code: x.dept_code, deputies: x.deputies };
+                }),
+            }));
+            this.listDeptManagerLvl1 = this.dataAppFlow
+                .find((item) => item.level === "level1")
+                ?.managers.map((manager) => manager.email) || [];
+        },
+        async saveSelectedApps() {
+            try {
+                if (!this.$refs.appForm.validate()) {
+                    this.$notify({
+                        title: 'Error',
+                        text: this.$t('Please fill in all required fields'),
+                        type: 'error'
+                    });
+                    return;
+                }
+                if (!this.contacts.length) {
+                    this.$notify({
+                        title: 'Error',
+                        text: this.$t('At least one contact is required'),
+                        type: 'error'
+                    });
+                    return;
+                }
+                const invalidContacts = this.contacts.filter(contact => {
+                    return !contact.fullName ||
+                        !contact.location ||
+                        !contact.nationality ||
+                        !contact.startDate
+
+                });
+
+                if (invalidContacts.length > 0) {
+                    this.$notify({
+                        title: 'Error',
+                        text: this.$t('Please fill in all required fields for all contacts'),
+                        type: 'error'
+                    });
+                    return;
+                }
+                const contactsArray = this.contacts.map(contact => {
+                    // Extract location value
+                    let locationValue = '';
+                    if (contact.location) {
+                        if (typeof contact.location === 'object' && contact.location.loc) {
+                            locationValue = contact.location.loc;
+                        } else if (typeof contact.location === 'string') {
+                            locationValue = contact.location;
+                        }
+                    }
+
+                    return {
+                        name: contact.fullName,
+                        nation: contact.nationality,
+                        location: locationValue, // Use extracted location value
+                        start_date: contact.startDate,
+                        end_date: contact.endDate,
+                        note: contact.notes,
+                        gender: contact.gender,
+                        room_no: '',
+                    };
+                });
+                const data = {
+                    id: this.id,
+                    key_in_date: this.today,
+                    approval: JSON.stringify([
+                        { empno: "", name: "", reason: "", email: "", date: "", stt: "" },
+                        { empno: "", name: "", reason: "", email: "", date: "", stt: "" },
+                        { empno: "", name: "", reason: "", email: "", date: "", stt: "" },
+                        { empno: "", name: "", reason: "", email: "", date: "", stt: "" }
+                    ]),
+                    status: JSON.stringify([
+                        { dept: "false", stt: "waiting dept" },
+                        { ga: "false", stt: "waiting ga" },
+                        { smp: "false", stt: "waiting smp" },
+                        { gm: "false", stt: "waiting gm" }
+                    ]),
+                    submitter: JSON.stringify({
+                        empno: this.activeUser.empno,
+                        name: this.activeUser.name,
+                        dept: this.activeUser.dept,
+                        email: this.activeUser.email,
+                        ext: this.activeUser.ext,
+                        submit_date: dayjs().format('YYYY-MM-DD HH:mm:ss')
+                    }),
+                    contacts: JSON.stringify(contactsArray),
+                    reason: this.reason,
+                };
+                await this.$axios.post(this.api + 'savedb', data);
+
+                const link = "http://gmo021.cansportsvg.com/ga/dma";
+                const target = this.activeUser.location.toLocaleUpperCase() + "-EXPAT-" + this.activeUser.dept;
+
+                // const target = 'dma';
+
+                const emailData = {
+                    dept: this.activeUser.dept,
+                    count: contactsArray.length,
+                    rows: contactsArray.map(person => ({
+                        name: person.name,
+                        nation: this.getLocalizedNation(person.nation),
+                        gender: person.gender === 'F' ? 'Female/女' : 'Male/男',
+                        start_date: person.start_date,
+                        end_date: person.end_date,
+                        note: person.note || '',
+                        location: person.location
+                    })),
+                    link: link
+                };
+
+                await this.$axios.post(this.api + 'sendNewRequestNotification', {
+                    target: target,
+                    emailData: emailData,
+                    managers: this.listDeptManagerLvl1
+                });
+
+                // Refresh data and reset form
+                await this.getDormData();
+                this.clearFields();
+                this.appDialog = false;
+
+                this.$notify({
+                    title: 'Success',
+                    text: this.$t('Request created successfully'),
+                    type: 'success'
+                });
+
+            } catch (error) {
+                console.error('Error saving request:', error);
+                this.$notify({
+                    title: 'Error',
+                    text: error.message || this.$t('Failed to create request'),
+                    type: 'error'
+                });
+            }
+        },
+        async sendMsg(target, body, managers) {
+            try {
+                let mailData = {
+                    to: managers,
+                    subject: "Dormitory Application",
+                    msgBody: body,
+                };
+
+                let params = {
+                    target: target,
+                    body: body,
+                    msg_type: "m",
+                    msg_method: "both",
+                    msg_subject: "Dormitory Application",
+                    mail_template: "msgCenterMailTemplate",
+                    mail_data: JSON.stringify(mailData),
+                };
+
+                const response = await this.$axios.post(this.msgApi, params);
+
+                if (response.status !== 200) {
+                    console.error("Error sending message:", response);
+                    throw new Error(`Failed to send message: ${response.status}`);
+                }
+
+            } catch (error) {
+                console.error("Error in sendMsg:", error);
+                this.$notify({
+                    title: 'Error',
+                    text: this.$t('Failed to send email notification'),
+                    type: 'error'
+                });
+            }
+        },
+        clearFields() {
+            this.contacts = [{
+                fullName: '',
+                location: '',
+                nationality: '',
+                gender: 'M',
+                startDate: '',
+                endDate: '',
+                notes: '',
+                checkStartDate: false,
+                checkEndDate: false
+            }];
+            this.submitterInfo = {
+                submit_date: '',
+                name: '',
+                dept: '',
+                ext: '',
+                empno: '',  // Clear empno field
+                location: '' // Clear location field
+            };
+            this.selectedItem = null;
+            this.id = '';
+        },
+        // get all data
+        async getDormData() {
+            try {
+                this.loading = true;
+                const res = await this.$axios.get(this.api + 'getAllData');
+                this.dromData = res.data.dormData;
+                this.updateFilterItems();  // Update filter items after getting data
+                this.loading = false;
+
+            } catch (error) {
+                console.log(error);
+            }
+        },
+        showSubmitterInfo(item) {
+            this.selectedSubmitter = JSON.parse(item.submitter);
+            this.submitterDialog = true;
+        },
+        showNote(item) {
+            this.selectedNote = item.note;
+            this.selectedNoteName = item.name;
+            this.noteDialog = true;
+        },
+        showAddress(item) {
+            this.selectedAddress = item.address;
+            this.addressDialog = true;
+        },
+        showappDialog(item) {
+            try {
+                const nameArray = JSON.parse(item.name);
+                const submitter = JSON.parse(item.submitter);
+
+                // Update submitterInfo with all required fields
+                this.submitterInfo = {
+                    submit_date: submitter.submit_date || item.key_in_date,
+                    name: submitter.name,
+                    dept: submitter.dept,
+                    ext: submitter.ext || '',
+                    empno: submitter.empno || '', // Extract empno from submitter
+                    location: submitter.location || this.activeUser.location // Use submitter location or fallback to active user
+                };
+
+                this.contacts = nameArray.map(person => ({
+                    fullName: person.name || '',
+                    location: person.location || '',
+                    nationality: person.nation || '',
+                    gender: person.gender || 'M',
+                    startDate: person.start_date || '',
+                    endDate: person.end_date || '',
+                    notes: person.note || '',
+                    checkStartDate: false,
+                    checkEndDate: false
+                }));
+
+                this.reason = item.reason;
+                this.selectedItem = item;
+                this.id = item.id;
+
+                // Force AppFlow component to update before showing dialog
+                this.$nextTick(() => {
+                    this.appDialog = true;
+                });
+
+            } catch (error) {
+                console.error('Error showing application dialog:', error);
+                this.$notify({
+                    title: 'Error',
+                    text: this.$t('Failed to load application details'),
+                    type: 'error'
+                });
+            }
+        },
+        getStatusText(item) {
+            try {
+                const status = JSON.parse(item.status);
+                // First check for denials at any level
+                if (status.some(s => s.stt === "deny")) {
+                    return this.$t('Denied');
+                }
+
+                // Then check other statuses in sequence
+                if (status[3]?.gm === "true" && status[3]?.stt === "accept") {
+                    return this.$t('Complete');
+                } else if (status[2]?.smp === "true" && status[2]?.stt === "accept") {
+                    return this.$t('Waiting GM');
+                } else if (status[1]?.ga === "true" && status[1]?.stt === "accept") {
+                    return this.$t('Waiting SMP');
+                } else if (status[0].dept === "true" && status[0].stt === "accept") {
+                    return this.$t('Waiting GA');
+                } else if (status[0].dept === "false" && status[0].stt === "waiting dept") {
+                    return this.$t('Waiting Dept');
+                }
+                return this.$t('Unknown Status');
+            } catch (error) {
+                console.error('Error parsing status:', error);
+                return this.$t('Unknown Status');
+            }
+        },
+
+        getStatusColor(item) {
+            try {
+                const status = JSON.parse(item.status);
+                if (status[3]?.gm === "true") {
+                    return 'green';
+                } else if (status[0].stt === "deny" || status[1].stt === "deny" || status[2].stt === "deny" || status[3]?.stt === "deny") {
+                    return 'red';
+                } else if (status[2]?.smp === "true" && status[2]?.stt === "accept") {
+                    return 'purple';
+                } else if (status[1]?.ga === "true" && status[1]?.stt === "accept") {
+                    return 'blue';
+                } else if (status[0].dept === "false" && status[0].stt === "waiting dept") {
+                    return 'orange';
+                }
+                return 'grey';
+            } catch (error) {
+                console.error('Error parsing status:', error);
+                return 'grey';
+            }
+        },
+
+        getStatusIcon(item) {
+            try {
+                const status = JSON.parse(item.status);
+
+                // First check for denials at any level
+                if (status.some(s => s.stt === "deny")) {
+                    return 'mdi-close-circle';
+                }
+                if (status[3]?.gm === "true") {
+                    return 'mdi-check-circle';
+                } else if (status[2]?.smp === "true" && status[2]?.stt === "accept") {
+                    return 'mdi-account-clock';
+                } else if (status[1]?.ga === "true" && status[1]?.stt === "accept") {
+                    return 'mdi-account-clock';
+                } else if (status[0].dept === "true" && status[0].stt === "accept") {
+                    return 'mdi-account-clock';
+                } else if (status[0].dept === "false" && status[0].stt === "waiting dept") {
+                    return 'mdi-clock-outline';
+                }
+
+                return 'mdi-help-circle';
+            } catch (error) {
+                console.error('Error parsing status:', error);
+                return 'mdi-help-circle';
+            }
+        },
+        showApprovalInfo(item) {
+            try {
+                this.selectedApprovals = JSON.parse(item.approval);
+                this.approvalDialog = true;
+            } catch (error) {
+                console.error('Error parsing approval data:', error);
+                this.$notify({
+                    title: 'Error',
+                    text: 'Failed to load approval information',
+                    type: 'error'
+                });
+            }
+        },
+
+        hasApprovalInfo(item) {
+            try {
+                const approvals = JSON.parse(item.approval);
+                return approvals && approvals.some(a => a.empno || a.name || a.date);
+            } catch {
+                return false;
+            }
+        },
+        getApprovalLevel(index) {
+            switch (index) {
+                case 0:
+                    return this.$t('Department');
+                case 1:
+                    return 'GA';
+                case 2:
+                    return 'SMP';
+                case 3:
+                    return 'GM';
+                default:
+                    return '';
+            }
+        },
+        getApprovalStatusColor(status) {
+            switch (status?.toLowerCase()) {
+                case 'accept':
+                    return 'success';
+                case 'deny':
+                    return 'error';
+                default:
+                    return 'grey';
+            }
+        },
+        openDenyDialog(item) {
+            this.selectedItem = item;
+            this.denyReason = '';
+            this.denyDialog = true;
+        },
+        async confirmDeny() {
+            if (!this.denyReason) return;
+
+            try {
+                const item = this.selectedItem;
+                const status = JSON.parse(item.status);
+                const approval = JSON.parse(item.approval);
+                const currentUserEmpno = this.activeUser.empno;
+
+                // Get the current level being processed (returns 1,2,3,4)
+                const currentLevel = this.getCurrentApprovalLevel(status);
+                if (currentLevel === 0) {
+                    throw new Error('No pending approval found or request is already completed');
+                }
+
+                // Adjust level to 0-based index (0,1,2,3)
+                const levelIndex = currentLevel - 1;
+
+                // Check if user has permission to deny at this level
+                const hasPermission = this.dataAppFlow[levelIndex]?.managers.some(m =>
+                    m.empno === currentUserEmpno ||
+                    m.deputies?.some(d => d.empno.toLowerCase() === currentUserEmpno.toLowerCase() &&
+                        (d.status === true))
+                );
+
+                if (!hasPermission) {
+                    throw new Error('You do not have permission to deny at this level');
+                }
+
+                // Update status at the current level
+                const statusKeys = ['dept', 'ga', 'smp', 'gm'];
+                status[levelIndex] = {
+                    [statusKeys[levelIndex]]: "true",
+                    stt: "deny"
+                };
+
+                // Update approval info
+                approval[levelIndex] = {
+                    empno: this.activeUser.empno,
+                    name: this.activeUser.name,
+                    email: this.activeUser.email,
+                    date: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+                    stt: "deny",
+                    reason: this.denyReason
+                };
+
+                const requestData = {
+                    id: item.id,
+                    status: JSON.stringify(status),
+                    approval: JSON.stringify(approval),
+                    dataAppFlow: this.dataAppFlow.map(level => ({
+                        level: level.level,
+                        managers: level.managers.map(m => ({
+                            empno: m.empno,
+                            email: m.email,
+                            name: m.name
+                        }))
+                    }))
+                };
+
+                await this.$axios.post(this.api + 'denyRequest', requestData);
+
+                await this.getDormData();
+                this.denyDialog = false;
+                this.appDialog = false
+                this.denyReason = '';
+                this.$notify({
+                    title: 'Success',
+                    text: this.$t('Request denied successfully'),
+                    type: 'success'
+                });
+            } catch (error) {
+                console.error('Error in confirmDeny:', error);
+                this.$notify({
+                    title: 'Error',
+                    text: error.message || this.$t('Failed to deny request'),
+                    type: 'error'
+                });
+            }
+        },
+        accept(item) {
+
+            this.selectedRequestToAccept = item;
+            this.acceptDialog = true;
+        },
+        async confirmAccept() {
+            try {
+                const item = this.selectedRequestToAccept;
+                const status = JSON.parse(item.status);
+                const currentUserEmail = this.activeUser.email;
+
+                const userLevels = {
+                    isLevel1: this.dataAppFlow[0]?.managers.some(m =>
+                        m.email === currentUserEmail ||
+                        m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
+                    ),
+                    isLevel2: this.dataAppFlow[1]?.managers.some(m =>
+                        m.email === currentUserEmail ||
+                        m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
+                    ),
+                    isLevel3: this.dataAppFlow[2]?.managers.some(m =>
+                        m.email === currentUserEmail ||
+                        m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
+                    ),
+                    isLevel4: this.dataAppFlow[3]?.managers.some(m =>
+                        m.email === currentUserEmail ||
+                        m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
+                    )
+                };
+
+                const currentLevel = this.getCurrentApprovalLevel(status);
+
+                let levelToProcess = null;
+                let approvalIndex = null;
+
+                if (currentLevel === 1 && userLevels.isLevel1) {
+                    levelToProcess = 1;
+                    approvalIndex = 0;
+                } else if (currentLevel === 2 && userLevels.isLevel2) {
+                    levelToProcess = 2;
+                    approvalIndex = 1;
+                } else if (currentLevel === 3 && userLevels.isLevel3) {
+                    levelToProcess = 3;
+                    approvalIndex = 2;
+                } else if (currentLevel === 4 && userLevels.isLevel4) {
+                    levelToProcess = 4;
+                    approvalIndex = 3;
+                }
+
+                if (levelToProcess === null) {
+                    throw new Error('You do not have permission to approve at the current level');
+                }
+
+                if (levelToProcess === 1) {
+                    status[0] = { dept: "true", stt: "accept" };
+                    status[1] = { ga: "false", stt: "waiting ga" };
+                    status[2] = { smp: "false", stt: "waiting" };
+                    status[3] = { gm: "false", stt: "waiting" };
+                } else if (levelToProcess === 2) {
+                    status[1] = { ga: "true", stt: "accept" };
+                    status[2] = { smp: "false", stt: "waiting smp" };
+                    status[3] = { gm: "false", stt: "waiting" };
+                } else if (levelToProcess === 3) {
+                    status[2] = { smp: "true", stt: "accept" };
+                    status[3] = { gm: "false", stt: "waiting gm" };
+                } else if (levelToProcess === 4) {
+                    status[3] = { gm: "true", stt: "accept" };
+                }
+
+                const approval = JSON.parse(item.approval);
+                approval[approvalIndex] = {
+                    empno: this.activeUser.empno,
+                    name: this.activeUser.name,
+                    email: this.activeUser.email,
+                    date: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+                    stt: "accept",
+                    reason: ""
+                };
+
+                await this.$axios.post(this.api + 'acceptRequest', {
+                    id: item.id,
+                    status: JSON.stringify(status),
+                    approval: JSON.stringify(approval),
+                    currentUser: this.activeUser,
+                    dataAppFlow: this.dataAppFlow,
+                    targetLevel: currentLevel - 1
+                });
+
+                this.getDormData();
+                this.acceptDialog = false;
+                this.appDialog = false;
+                this.$notify({
+                    title: 'Success',
+                    text: this.$t('Request accepted successfully'),
+                    type: 'success'
+                });
+            } catch (error) {
+                console.error(error);
+                this.$notify({
+                    title: 'Error',
+                    text: this.$t('Failed to accept request') + ": " + error.message,
+                    type: 'error'
+                });
+            }
+        },
+
+        // Add a new helper method to determine current approval level
+        getCurrentApprovalLevel(status) {
+            // Level 1: Department đang chờ duyệt
+            if (status[0]?.dept === "false" && status[0]?.stt === "waiting dept") {
+                return 1;
+            }
+
+            // Level 2: Department đã duyệt, đang chờ GA
+            if (status[0]?.dept === "true" && status[0]?.stt === "accept" &&
+                (status[1]?.ga === "false" || status[1]?.stt === "waiting ga")) {
+                return 2;
+            }
+
+            // Level 3: GA đã duyệt, đang chờ SMP - FIX ở đây
+            if (status[1]?.ga === "true" && status[1]?.stt === "accept") {
+                if (status[2]?.smp !== "true") {
+                    return 3;
+                }
+            }
+
+            // Level 4: SMP đã duyệt, đang chờ GM - FIX ở đây
+            if (status[2]?.smp === "true" && status[2]?.stt === "accept") {
+                if (status[3]?.gm !== "true") {
+                    return 4;
+                }
+            }
+
+            // Default or completed
+            return 0;
+        },
+        canTakeAction(item) {
+            try {
+                if (!item || !item.status) {
+                    return false;
+                }
+                const status = JSON.parse(item.status);
+                const currentUserEmail = this.activeUser?.email;
+
+                if (!currentUserEmail) {
+                    return false;
+                }
+
+                // Check if request is already completed or denied
+                if (status[3]?.gm === "true" || status.some(s => s.stt === "deny")) {
+                    return true;
+                }
+
+                // Check user permission based on levels
+                if (!this.dataAppFlow) {
+                    return false;
+                }
+
+                // Check if user is a manager or deputy at any level
+                const level1Permission = this.dataAppFlow[0]?.managers.some(m =>
+                    m.email === currentUserEmail ||
+                    m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
+                );
+                const level2Permission = this.dataAppFlow[1]?.managers.some(m =>
+                    m.email === currentUserEmail ||
+                    m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
+                );
+                const level3Permission = this.dataAppFlow[2]?.managers.some(m =>
+                    m.email === currentUserEmail ||
+                    m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
+                );
+                const level4Permission = this.dataAppFlow[3]?.managers.some(m =>
+                    m.email === currentUserEmail ||
+                    m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
+                );
+
+                const hasPermission = level1Permission || level2Permission || level3Permission || level4Permission;
+                return hasPermission;
+            } catch (error) {
+                console.error('Error in canTakeAction:', error);
+                return false;
+            }
+        },
+
+        canAccept(item) {
+            try {
+                if (!item || !item.status) return false;
+
+                const status = JSON.parse(item.status);
+                const currentUserEmpno = this.activeUser?.empno;
+                const submitterDept = JSON.parse(item.submitter).dept;
+                const currentUserEmail = this.activeUser?.email;
+
+                if (!currentUserEmpno) return false;
+                if (!this.dataAppFlow || !Array.isArray(this.dataAppFlow)) return false;
+
+                // Update level 1 check to include department validation
+                const isLevel1 = this.dataAppFlow[0]?.managers?.some(m => {
+                    const hasDeptsAccess = m.dept_code?.includes(submitterDept);
+                    const isManagerOrDeputy =
+                        m.empno === currentUserEmpno ||
+                        m.deputies?.some(d => d.empno === currentUserEmpno && d.status === true);
+                    return hasDeptsAccess && isManagerOrDeputy;
+                });
+
+                // Other levels remain the same
+                const isLevel2 = this.dataAppFlow[1]?.managers?.some(m =>
+                    m.empno === currentUserEmpno ||
+                    m.deputies?.some(d => d.empno === currentUserEmpno && d.status === true)
+                );
+                const isLevel3 = this.dataAppFlow[2]?.managers?.some(m =>
+                    m.email === currentUserEmail ||
+                    m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
+                );
+                const isLevel4 = this.dataAppFlow[3]?.managers?.some(m =>
+                    m.email === currentUserEmail ||
+                    m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
+                );
+
+                // Kiểm tra trạng thái hiện tại
+                const currentLevel = this.getCurrentApprovalLevel(status);
+
+                // Kiểm tra từng level cụ thể - cải thiện logic cho level 3 và 4
+                if (currentLevel === 3 && isLevel3) {
+                    return true;
+                }
+
+                if (currentLevel === 4 && isLevel4) {
+                    return true;
+                }
+
+                if (currentLevel === 1 && isLevel1) {
+                    return status[0].dept === "false" && status[0].stt === "waiting dept";
+                }
+
+                if (currentLevel === 2 && isLevel2) {
+                    return status[0].dept === "true" && status[0].stt === "accept" &&
+                        status[1].ga === "false" && status[1].stt === "waiting ga";
+                }
+
+                return false;
+            } catch (error) {
+                console.error('[PROD DEBUG] Error in canAccept:', error);
+                return false;
+            }
+        },
+
+        canDeny(item) {
+            try {
+                if (!item || !item.status) return false;
+
+                const status = JSON.parse(item.status);
+                const currentUserEmpno = this.activeUser?.empno;
+                const submitterDept = JSON.parse(item.submitter).dept;
+                const currentUserEmail = this.activeUser?.email;
+
+                if (!currentUserEmpno) return false;
+                if (!this.dataAppFlow || !Array.isArray(this.dataAppFlow)) return false;
+
+                // Update level 1 check to include department validation
+                const isLevel1 = this.dataAppFlow[0]?.managers?.some(m => {
+                    const hasDeptsAccess = m.dept_code?.includes(submitterDept);
+                    const isManagerOrDeputy =
+                        m.empno === currentUserEmpno ||
+                        m.deputies?.some(d => d.empno === currentUserEmpno && d.status === true);
+                    return hasDeptsAccess && isManagerOrDeputy;
+                });
+
+                // Other levels remain the same
+                const isLevel2 = this.dataAppFlow[1]?.managers?.some(m =>
+                    m.empno === currentUserEmpno ||
+                    m.deputies?.some(d => d.empno === currentUserEmpno && d.status === true)
+                );
+                const isLevel3 = this.dataAppFlow[2]?.managers?.some(m =>
+                    m.email === currentUserEmail ||
+                    m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
+                );
+                const isLevel4 = this.dataAppFlow[3]?.managers?.some(m =>
+                    m.email === currentUserEmail ||
+                    m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
+                );
+
+                const currentLevel = this.getCurrentApprovalLevel(status);
+
+                if (currentLevel === 3 && isLevel3) {
+                    return true;
+                }
+
+                if (currentLevel === 4 && isLevel4) {
+                    return true;
+                }
+
+                if (currentLevel === 1 && isLevel1) {
+                    return status[0].dept === "false" && status[0].stt === "waiting dept";
+                }
+
+                if (currentLevel === 2 && isLevel2) {
+                    return status[0].dept === "true" && status[0].stt === "accept" &&
+                        status[1].ga === "false" && status[1].stt === "waiting ga";
+                }
+
+                return false;
+            } catch (error) {
+                console.error('[PROD DEBUG] Error in canDeny:', error);
+                return false;
+            }
+        },
+        getLatestReason(item) {
+            try {
+                const approvals = JSON.parse(item.approval);
+                // Lọc ra các approval có reason và lấy cái mới nhất
+                const lastApproval = approvals
+                    .filter(a => a.reason)
+                    .pop();
+                return lastApproval?.reason || '';
+            } catch (error) {
+                console.error('Error parsing approval:', error);
+                return '';
+            }
+        },
+        showReasonDialog(item) {
+            const reason = this.getLatestReason(item);
+            if (reason) {
+                this.selectedReason = reason;
+                this.reasonDialog = true;
+            }
+        },
+        isStatusDenied(item) {
+            try {
+                const status = JSON.parse(item.status);
+                return status[0].stt === "deny" || status[1].stt === "deny" || status[2].stt === "deny" || status[3]?.stt === "deny";
+            } catch (error) {
+                console.error('Error checking denied status:', error);
+                return false;
+            }
+        },
+        isCompleted(item) {
+            try {
+                const status = JSON.parse(item.status);
+                return status[3]?.gm === "true" && status[3]?.stt === "accept";
+            } catch (error) {
+                console.error('Error checking completed status:', error);
+                return false;
+            }
+        },
+        updateFilter(field, value) {
+            if (value && value.length) {
+                this.$set(this.filters, field, value);
+            } else {
+                this.$delete(this.filters, field);
+            }
+            this.forceUpdate++; // Trigger re-render
+        },
+
+        getStatusFilterValue(statusJson) {
+            try {
+                const status = JSON.parse(statusJson);
+                if (status[3]?.gm === "true") {
+                    return this.$t('Complete');
+                } else if (status[2]?.smp === "true" && status[2]?.stt === "accept") {
+                    return this.$t('Waiting GM');
+                } else if (status[1]?.ga === "true" && status[1]?.stt === "accept") {
+                    return this.$t('Waiting SMP');
+                } else if (status[0].dept === "true" && status[0].stt === "accept") {
+                    return this.$t('Waiting GA');
+                } else if (status[0].dept === "false" && status[0].stt === "waiting dept") {
+                    return this.$t('Waiting Dept');
+                } else if (status.some(s => s.stt === "deny")) {
+                    return this.$t('Denied');
+                }
+                return this.$t('Unknown Status');
+            } catch (error) {
+                return this.$t('Unknown Status');
+            }
+        },
+
+        updateFilterItems() {
+            const uniqueValues = (arr, key) => {
+                return [...new Set(arr.map(item => {
+                    switch (key) {
+                        case 'status':
+                            return this.getStatusFilterValue(item[key]); // Xử lý đặc biệt cho status
+                        case 'submitter':
+                            const parsed = JSON.parse(item[key]);
+                            return parsed.empno + ' - ' + parsed.name;
+                        case 'name':
+                            const nameArr = JSON.parse(item[key]);
+                            return nameArr.length + ' ' + this.$t('People');
+                        case 'key_in_date':
+                            return dayjs(item[key]).format('YYYY-MM-DD');
+                        case 'room_no':
+                            return item[key] || '-';
+                        default:
+                            return item[key];
+                    }
+                }).filter(Boolean))];
+            };
+
+            Object.keys(this.filterItems).forEach(key => {
+                this.filterItems[key] = uniqueValues(this.dromData, key);
+            });
+        },
+        addNewContact() {
+            if (this.contacts.length < 30) {
+                this.contacts.push({
+                    fullName: '',
+                    location: '',
+                    nationality: '',
+                    gender: 'F',
+                    startDate: '',
+                    endDate: '',
+                    notes: '',
+                    checkStartDate: false,
+                    checkEndDate: false
+                });
+            }
+            else {
+                this.$notify({
+                    title: 'Error',
+                    text: 'You can only add up to 30 contacts',
+                    type: 'error'
+                });
+            }
+        },
+        removeLastContact() {
+            if (this.contacts.length > 1) {
+                this.contacts.pop();
+            }
+        },
+        addContactAfter(index) {
+            if (this.contacts.length >= 30) return;
+
+            const previousContact = this.contacts[index];
+            const newContact = {
+                fullName: '',
+                // Copy values from previous contact
+                location: previousContact.location,
+                nationality: previousContact.nationality,
+                gender: previousContact.gender,
+                startDate: previousContact.startDate,
+                endDate: previousContact.endDate,
+                notes: '',
+                checkStartDate: false,
+                checkEndDate: false
+            };
+
+            this.contacts.splice(index + 1, 0, newContact);
+        },
+
+        removeContactAt(index) {
+            if (this.contacts.length <= 1) return;
+            this.contacts.splice(index, 1);
+        },
+        getLocalizedNation(nationId) {
+            try {
+                if (!nationId) return '';
+                const nationItem = this.nationalityList.find(item => Number(item.id) === Number(nationId));
+                if (!nationItem) return `Nation ID: ${nationId}`; // For debugging
+
+                const nationObj = JSON.parse(nationItem.nation.trim());
+                // Return localized nation name based on current locale, fallback to English
+                return nationObj[this.$i18n.locale] || nationObj.en || '';
+
+            } catch (error) {
+                console.error('Error in getLocalizedNation:', error);
+                return `Error: ${nationId}`; // For debugging
+            }
+        },
+        getLocationValue(locationCode) {
+            try {
+                if (!locationCode) return '';
+                // Trả về trực tiếp mã location vì đã là string
+                return locationCode;
+            } catch (error) {
+                console.error('Error getting location:', error);
+                return '';
+            }
+        },
+        parseQRContent(item) {
+            try {
+                const submitter = JSON.parse(item.submitter);
+                const nameArray = JSON.parse(item.name);
+                let qrContent = `${item.id};${submitter.empno};${submitter.dept};${item.key_in_date}`;
+
+                // Add each occupant's information
+                nameArray.forEach(occupant => {
+                    // Extract location value correctly from location object
+                    const locationValue = occupant.location?.loc || occupant.location || '';
+
+                    qrContent += `;${occupant.name};${this.getLocalizedNation(occupant.nation)};${locationValue};${occupant.start_date};${occupant.end_date}`;
+                });
+                return qrContent;
+            } catch (error) {
+                console.error('Error parsing QR content:', error);
+                return null;
+            }
+        },
+        async handleRoomNoUpdate(item) {
+            try {
+                if (!this.canEditRoomNo) return;
+
+                await this.$axios.post(this.api + 'updateRoom', {
+                    id: item.id,
+                    room_no: item.room_no
+                });
+                const qrContent = this.parseQRContent(item);
+                if (qrContent) {
+                    const qrImage = await QRCode.toDataURL(qrContent);
+                    await this.$axios.post(this.api + 'updateQRCode', {
+                        id: String(item.id),
+                        qr_code: qrImage
+                    });
+                }
+                this.editingRoomId = null;
+                this.$notify({
+                    title: 'Success',
+                    text: this.$t('Room number and QR code updated successfully'),
+                    type: 'success'
+                });
+
+                await this.getDormData();
+            } catch (error) {
+                this.$notify({
+                    title: 'Error',
+                    text: this.$t('Failed to update room number and QR code'),
+                    type: 'error'
+                });
+            }
+        },
+        startEditingRoom(itemId) {
+            this.editingRoomId = itemId;
+        },
+        cancelEditingRoom() {
+            this.editingRoomId = null;
+        },
+        isUserManager() {
+            const currentUserEmail = this.activeUser.email;
+
+            if (!currentUserEmail || !this.dataAppFlow) return false;
+
+            return this.dataAppFlow.some(level =>
+                level.managers.some(m =>
+                    m.email === currentUserEmail ||
+                    m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
+                )
+            );
+        },
+
+        setDefaultTab() {
+            const isManagerOrDeputy = this.dataAppFlow?.some(level =>
+                level.managers?.some(m =>
+                    m.email === this.activeUser.email ||
+                    m.deputies?.some(d => d.email === this.activeUser.email && (d.status === true || d.status === undefined))
+                )
+            );
+
+            this.statusFilter = isManagerOrDeputy ? 1 : 0;
+        },
+        getManagerInfo(item) {
+            try {
+                const status = JSON.parse(item.status);
+                const currentStatus = this.getCurrentStatus(status);
+
+                let level = '';
+                if (status[0].dept === "false" && status[0].stt === "waiting dept") {
+                    level = "level1";
+                } else if (status[0].dept === "true" && status[1].ga === "false") {
+                    level = "level2";
+                } else if (status[1].ga === "true" && status[2].smp === "false") {
+                    level = "level3";
+                } else if (status[2].smp === "true" && status[3]?.gm === "false") {
+                    level = "level4";
+                }
+                const levelData = this.dataAppFlow?.find(l => l.level === level);
+                if (!levelData || !levelData.managers.length) return '';
+
+                let managerInfo = [];
+
+                levelData.managers.forEach(manager => {
+                    managerInfo.push(`${manager.name} (${manager.empno})`);
+
+                    if (manager.deputies && manager.deputies.length > 0) {
+                        const activeDeputies = manager.deputies.filter(d => d.status === true);
+                        if (activeDeputies.length > 0) {
+                            activeDeputies.forEach(deputy => {
+                                managerInfo.push(`${deputy.name} (${deputy.empno || 'Deputy'})`);
+                            });
+                        }
+                    }
+                });
+
+                return managerInfo.join('\n');
+
+            } catch (error) {
+                console.error('Error getting manager info:', error);
+                return '';
+            }
+        },
+        getCurrentStatus(status) {
+            if (status[0].dept === "false" && status[0].stt === "waiting dept") {
+                return "waiting_dept";
+            }
+            if (status[0].dept === "true" && status[1].ga === "false") {
+                return "waiting_ga";
+            }
+            if (status[1].ga === "true" && status[2].smp === "false") {
+                return "waiting_smp";
+            }
+            if (status[2].smp === "true" && status[3]?.gm === "false") {
+                return "waiting_gm";
+            }
+            return "completed";
+        },
+        getNameCount(item) {
+            try {
+                const nameArray = JSON.parse(item.name);
+                return nameArray.length;
+            } catch (error) {
+                console.error('Error parsing names:', error);
+                return 0;
+            }
+        },
+
+        async showNameList(item) {
+            try {
+                const nameArray = JSON.parse(item.name);
+                this.selectedItem = item; // Store the selected item
+
+                this.selectedNames = nameArray.map(person => {
+                    return {
+                        ...person,
+                        qr_path: person.qr_path || null
+                    };
+                });
+
+                this.nameListDialog = true;
+            } catch (error) {
+                console.error('Error showing name list:', error);
+                this.$notify({
+                    title: 'Error',
+                    text: this.$t('Failed to load occupant list'),
+                    type: 'error'
+                });
+            }
+        },
+        showNameDetails(item) {
+            try {
+                this.selectedItem = item;
+                const nameArray = JSON.parse(item.name);
+                this.selectedNameDetails = nameArray.map(person => ({
+                    ...person,
+                    selected: false
+                }));
+                this.selectAll = false;
+                this.nameDetailsDialog = true;
+            } catch (error) {
+                console.error('Error parsing name details:', error);
+                this.$notify({
+                    title: 'Error',
+                    text: this.$t('Failed to load occupant details'),
+                    type: 'error'
+                });
+            }
+        },
+        async downloadQRCode() {
+            if (!this.selectedQRCode) return;
+            try {
+                const link = document.createElement('a');
+                link.href = this.selectedQRCode;
+                link.download = `qr_code_${Date.now()}.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } catch (error) {
+                console.error('Error downloading QR code:', error);
+                this.$notify({
+                    title: 'Error',
+                    text: this.$t('Failed to download QR code'),
+                    type: 'error'
+                });
+            }
+        },
+        getOccupantCount(item) {
+            try {
+                const nameArray = JSON.parse(item.name);
+                return nameArray.length;
+            } catch (error) {
+                console.error('Error parsing names:', error);
+                return 0;
+            }
+        },
+        async showQRCode(item) {
+            try {
+                if (!item.id || !item.qr_code) {
+                    this.$notify({
+                        title: 'Error',
+                        text: this.$t('QR code not available'),
+                        type: 'warning'
+                    });
+                    return;
+                }
+
+                const qrCodes = JSON.parse(item.qr_code);
+
+                if (qrCodes.length > 1) {
+                    this.selectedItem = item;
+                    const nameArray = JSON.parse(item.name);
+                    this.selectedNames = nameArray.map(person => {
+                        const qrInfo = qrCodes.find(qr => qr.name === person.name);
+                        return {
+                            ...person,
+                            qr_path: qrInfo?.qr || null
+                        };
+                    });
+                    this.nameListDialog = true;
+                } else if (qrCodes.length === 1) {
+                    await this.displayQRCode(qrCodes[0].qr, qrCodes[0].name);
+                }
+            } catch (error) {
+                console.error('Error showing QR code:', error);
+                this.$notify({
+                    title: 'Error',
+                    text: this.$t('Failed to load QR code'),
+                    type: 'error'
+                });
+            }
+        },
+
+        async displayQRCode(qrPath, name = null) {
+            try {
+                this.isLoadingQR = true;
+
+                if (!qrPath) {
+                    throw new Error('QR code path not available');
+                }
+
+                let url = `${this.storage_api}${qrPath}`;
+                const response = await this.$axios.get(url, {
+                    responseType: 'blob',
+                    validateStatus: function (status) {
+                        return status >= 200 && status < 500;
+                    }
+                });
+
+                const contentType = response.headers['content-type'];
+                if (contentType && contentType.includes('application/json')) {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        const error = JSON.parse(reader.result);
+                        throw new Error(error.error || 'Failed to load QR code');
+                    };
+                    reader.readAsText(response.data);
+                    return;
+                }
+
+                if (!contentType || !contentType.startsWith('image/')) {
+                    throw new Error('Invalid response type');
+                }
+
+                this.selectedQRCode = URL.createObjectURL(response.data);
+                this.selectedQRName = name;
+                this.qrDialog = true;
+
+            } catch (error) {
+                console.error('Error loading QR code:', error);
+                this.$notify({
+                    title: 'Error',
+                    text: this.$t(error.message || 'Failed to load QR code'),
+                    type: 'error'
+                });
+            } finally {
+                this.isLoadingQR = false;
+            }
+        },
+
+        async generateQRCode(item, nameArray) {
+            try {
+                const qrCodes = await Promise.all(nameArray.map(async (person) => {
+                    const qrContent = this.parseQRContent(item, person);
+                    const qrImage = await QRCode.toDataURL(qrContent);
+                    return {
+                        name: person.name,
+                        qr: qrImage
+                    };
+                }));
+
+                await this.$axios.post(this.api + 'updateQRCode', {
+                    id: item.id,
+                    qr_code: qrCodes
+                });
+
+                return qrCodes;
+            } catch (error) {
+                console.error('Error generating QR codes:', error);
+                throw error;
+            }
+        },
+
+        parseQRContent(item, person) {
+            try {
+                const submitter = JSON.parse(item.submitter);
+                const locationValue = person.location?.loc || person.location || '';
+
+                return [
+                    item.id,
+                    submitter.empno,
+                    submitter.dept,
+                    item.key_in_date,
+                    person.name,
+                    this.getLocalizedNation(person.nation),
+                    locationValue,
+                    person.start_date,
+                    person.end_date
+                ].join(';');
+            } catch (error) {
+                console.error('Error parsing QR content:', error);
+                return null;
+            }
+        },
+
+        async handleNameRoomUpdate(item) {
+            try {
+                if (!item.room_no) {
+                    this.$notify({
+                        title: 'Error',
+                        text: this.$t('Please enter a room number'),
+                        type: 'error'
+                    });
+                    return;
+                }
+
+                // Update local state first
+                this.selectedNameDetails = this.selectedNameDetails.map(detail => {
+                    if (detail.name === item.name) {
+                        return {
+                            ...detail,
+                            room_no: item.room_no
+                        };
+                    }
+                    return detail;
+                });
+
+                // Create updated name array from the current selectedNameDetails (which includes all previous updates)
+                const updatedNameArray = this.selectedNameDetails.map(detail => ({
+                    name: detail.name,
+                    nation: detail.nation,
+                    location: detail.location,
+                    start_date: detail.start_date,
+                    end_date: detail.end_date,
+                    note: detail.note,
+                    gender: detail.gender || detail.sex, // Handle both property names
+                    room_no: detail.room_no
+                }));
+
+                // Generate QR codes based on the updated name array
+                const qrCodes = await Promise.all(updatedNameArray.map(async person => {
+                    const qrContent = this.parseQRContent(this.selectedItem, person);
+                    const qrImage = await QRCode.toDataURL(qrContent);
+                    return {
+                        name: person.name,
+                        qr: qrImage
+                    };
+                }));
+
+                // Save to database with the complete updated name array
+                await this.$axios.post(this.api + 'updateRoomInName', {
+                    id: this.selectedItem.id,
+                    name: JSON.stringify(updatedNameArray),
+                    qr_codes: qrCodes  // Make sure this parameter name matches what API expects
+                });
+
+                this.editingNameRoom = null;
+                this.editingItem = null;
+
+                this.$notify({
+                    title: 'Success',
+                    text: this.$t('Room number and QR code updated successfully'),
+                    type: 'success'
+                });
+
+            } catch (error) {
+                console.error('Error updating room number:', error);
+                this.$notify({
+                    title: 'Error',
+                    text: this.$t('Failed to update room number and QR code'),
+                    type: 'error'
+                });
+            }
+        },
+
+        showReasonText(reason) {
+            this.selectedReasonText = reason;
+            this.reasonTextDialog = true;
+        },
+        startEditingNameRoom(item) {
+            this.editingNameRoom = item.name;
+            this.editingItem = item;
+        },
+        cancelEditingNameRoom() {
+            this.editingNameRoom = null;
+            this.editingItem = null;
+            this.getDormData();
+        },
+        getRoomCount(item) {
+            try {
+                const nameArray = JSON.parse(item.name);
+                return [...new Set(nameArray
+                    .map(person => person.room_no)
+                    .filter(room => room && room.trim())
+                )].length;
+            } catch (error) {
+                console.error('Error counting rooms:', error);
+                return 0;
+            }
+        },
+        async initializeApp() {
+
+        },
+        async viewPersonQR(person) {
+            try {
+                if (!person.qr_path) {
+                    throw new Error('QR code not available');
+                }
+                await this.displayQRCode(person.qr_path, person.name);
+                this.nameListDialog = false; // Close name list dialog after displaying QR
+            } catch (error) {
+                console.error('Error viewing person QR:', error);
+                this.$notify({
+                    title: 'Error',
+                    text: this.$t('Failed to load QR code'),
+                    type: 'error'
+                });
+            }
+        },
+        toggleSelectAll() {
+            this.selectedNameDetails = this.selectedNameDetails.map(item => ({
+                ...item,
+                selected: this.selectAll
+            }));
+        },
+
+        async updateSelectedRooms() {
+            if (!this.editingItem?.room_no) {
+                this.$notify({
+                    title: 'Error',
+                    text: this.$t('Please enter a room number'),
+                    type: 'error'
+                });
+                return;
+            }
+
+            try {
+                const selectedItems = this.selectedNameDetails.filter(item => item.selected);
+                if (selectedItems.length === 0) {
+                    this.$notify({
+                        title: 'Error',
+                        text: this.$t('Please select at least one person'),
+                        type: 'error'
+                    });
+                    return;
+                }
+
+                this.selectedNameDetails = this.selectedNameDetails.map(item => ({
+                    ...item,
+                    room_no: item.selected ? this.editingItem.room_no : item.room_no,
+                    selected: false
+                }));
+
+                this.selectAll = false;
+
+                const nameArray = JSON.parse(this.selectedItem.name);
+                const updatedNameArray = nameArray.map(person => {
+                    const updatedPerson = this.selectedNameDetails.find(item => item.name === person.name);
+                    if (updatedPerson) {
+                        return {
+                            ...person,
+                            room_no: updatedPerson.room_no
+                        };
+                    }
+                    return person;
+                });
+
+                const response = await this.$axios.post(this.api + 'updateRoomInName', {
+                    id: this.selectedItem.id,
+                    name: JSON.stringify(updatedNameArray)
+                });
+
+                if (response.data.qr_filenames && Array.isArray(response.data.qr_filenames)) {
+                    const qrCodes = await Promise.all(updatedNameArray.map(async (person, index) => {
+                        const qrContent = this.parseQRContent(this.selectedItem, person);
+                        const qrImage = await QRCode.toDataURL(qrContent);
+                        return {
+                            name: person.name,
+                            qr: qrImage
+                        };
+                    }));
+
+                    await this.$axios.post(this.api + 'updateQRCode', {
+                        id: this.selectedItem.id,
+                        qr_code: qrCodes
+                    });
+                }
+
+                this.editingNameRoom = null;
+                this.editingItem = null;
+
+                // Refresh data
+                await this.getDormData();
+
+                this.$notify({
+                    title: 'Success',
+                    text: this.$t('Room numbers updated successfully'),
+                    type: 'success'
+                });
+            } catch (error) {
+                console.error('Error updating room numbers:', error);
+                this.$notify({
+                    title: 'Error',
+                    text: this.$t('Failed to update room numbers'),
+                    type: 'error'
+                });
+            }
+        },
+    },
+    watch: {
+        appDialog(val) {
+            if (!val) {
+                this.clearFields();
+            }
+        },
+        dataAppFlow: {
+            handler(newVal) {
+                if (newVal) {
+                    this.setDefaultTab();
+                }
+            },
+            immediate: true
+        },
+        nameDetailsDialog(val) {
+            if (!val) {
+                this.editingNameRoom = null;
+                this.editingItem = null;
+                this.getDormData(); // Add this line to refresh data when dialog is closed
+            }
+        },
+        nameListDialog(val) {
+            if (!val) {
+                this.selectedNames.forEach(person => {
+                    if (person.qrCodeUrl) {
+                        URL.revokeObjectURL(person.qrCodeUrl);
+                    }
+                });
+            }
+        },
+        'selectedNameDetails': {
+            handler(newVal) {
+                // Update selectAll based on whether all items are selected
+                this.selectAll = newVal.length > 0 && newVal.every(item => item.selected);
+            },
+            deep: true
+        }
+    },
+    async mounted() {
+        //   await this.initializeApp();
+        try {
+            if (this.$session.has("dma")) {
+                this.activeUser = this.$session.get("dma");
+                this.isComponentReady = true;
+            } else {
+                this.$router.push({ path: "/" });
+                return;
+            }
+            this.getDormData(),
+                this.getLoc(),
+                this.getNation()
+            // Set default tab after data is loaded
+            this.$nextTick(() => {
+                this.setDefaultTab();
+            });
+
+            console.log('Initialization complete');
+
+        } catch (error) {
+            console.error('Error in mounted hook:', error);
+        }
+        setTimeout(() => {
+
+            if (this.activeUser?.email && this.dataAppFlow) {
+                const userEmail = this.activeUser.email;
+                const isLevel3 = this.dataAppFlow[2]?.managers?.some(m => m.email === userEmail);
+                const isLevel4 = this.dataAppFlow[3]?.managers?.some(m => m.email === userEmail);
+            }
+        }, 2000);
+    },
+}
+</script>
+<style scoped>
+.btn-hover:hover {
+    margin: 0 auto;
+}
+
+.v-data-table {
+    border: 1px solid #e0e0e0;
+}
+
+.v-data-table ::v-deep .v-data-table__wrapper {
+    overflow-y: auto;
+}
+
+.v-data-table ::v-deep thead th {
+    font-weight: 600 !important;
+    color: #004D40 !important;
+    background: white;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    text-transform: uppercase;
+}
+
+.v-data-table ::v-deep tbody tr:hover {
+    background-color: #f3fd99 !important;
+}
+
+.v-form {
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.v-text-field.mb-3 {
+    margin-bottom: 12px !important;
+}
+
+.v-card-subtitle {
+    color: rgba(0, 0, 0, 0.87) !important;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.v-dialog>.v-card {
+    border-radius: 8px;
+}
+
+.section-title {
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: #00796b;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #00796b;
+}
+
+.v-card-text {
+    max-height: 75vh;
+    overflow-y: auto;
+}
+
+.mb-4 {
+    margin-bottom: 16px !important;
+}
+
+.options-row {
+    margin: 3px 0;
+}
+
+.toggle-group {
+    display: flex;
+    flex-direction: column;
+    /* gap: 5px; */
+}
+
+.toggle-label {
+    font-size: 0.875rem;
+    color: rgba(0, 0, 0, 0.6);
+    font-weight: 500;
+}
+
+.toggle-buttons {
+    border: 1px solid var(--v-primary-base);
+    border-radius: 4px;
+    overflow: hidden;
+    width: 100%;
+}
+
+.toggle-btn {
+    flex: 1;
+    height: 36px !important;
+    font-size: 0.875rem !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+}
+
+.toggle-btn.v-btn--active {
+    background-color: var(--v-primary-base) !important;
+    color: rgb(0, 0, 0) !important;
+}
+
+.select-field {
+    height: 36px;
+    margin-top: 20px;
+}
+
+.select-field ::v-deep .v-input__slot {
+    min-height: 36px !important;
+}
+
+.submitter-item {
+    padding: 12px 0;
+}
+
+.submitter-item:hover {
+    background-color: #f5f5f5;
+}
+
+.v-list-item__subtitle.text-caption {
+    font-size: 0.75rem;
+    color: rgba(0, 0, 0, 0.6);
+}
+
+.v-list-item__title.font-weight-medium {
+    font-size: 0.95rem;
+    color: rgba(0, 0, 0, 0.87);
+}
+
+.v-list-item__avatar {
+    margin-right: 8px !important;
+    margin-top: 4px !important;
+    margin-bottom: 4px !important;
+}
+
+.v-list-item {
+    min-height: 40px !important;
+}
+
+.note-content {
+    padding: 16px;
+}
+
+.note-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e0e0e0;
+    color: #424242;
+}
+
+.note-body {
+    white-space: pre-wrap;
+    line-height: 1.6;
+    color: #212121;
+    background: #f5f5f5;
+    padding: 16px;
+    border-radius: 4px;
+    font-size: 0.95rem;
+}
+
+.note-text {
+    white-space: pre-wrap;
+    line-height: 1.6;
+    padding: 8px 0;
+}
+
+.reason-content {
+    white-space: pre-wrap;
+    line-height: 1.6;
+    padding: 16px;
+    background: #f5f5f5;
+    border-radius: 4px;
+    font-size: 0.95rem;
+}
+
+.room-no-input {
+    max-width: 60px;
+    margin-top: 0;
+}
+
+.room-no-input ::v-deep .v-input__slot {
+    min-height: 32px !important;
+}
+
+.room-no-input ::v-deep input {
+    text-align: center;
+    font-size: 0.875rem !important;
+}
+
+.v-tooltip__content {
+    white-space: pre-line !important;
+    text-align: left !important;
+}
+
+.qr-code-img {
+    max-width: 250px;
+    margin: 0 auto;
+}
+
+.qr-code-cell {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: transparent;
+}
+
+.qr-image {
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.qr-image:hover {
+    transform: scale(1.1);
+}
+
+.text-caption {
+    font-size: 0.75rem !important;
+}
+
+.v-list-item-subtitle {
+    font-size: 0.8rem;
+    color: rgba(0, 0, 0, 0.6);
+}
+
+.reason-text {
+    max-width: 150px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: inline-block;
+}
+
+.reason-content {
+    white-space: pre-wrap;
+    line-height: 1.6;
+    padding: 16px;
+    background: #f5f5f5;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.qr-code-img {
+    transition: transform 0.2s;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.qr-code-img:hover {
+    transform: scale(1.1);
+}
+
+.person-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.person-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+.male-card {
+    border-left: 4px solid #1976D2;
+}
+
+.female-card {
+    border-left: 4px solid #E91E63;
+}
+
+.v-list-item {
+    min-height: 32px !important;
+}
+
+.v-card-title {
+    word-break: break-word;
+    line-height: 1.2;
+}
+
+.v-list-item__icon {
+    margin: 4px 0;
+}
+
+.caption {
+    font-size: 0.875rem !important;
+}
+</style>
+
+<i18n>
+    {
+        "en": {
+            "name.required": "Name is required",
+            "name.minLength": "Name must be at least 2 characters",
+            "At least one contact is required": "At least one contact is required", 
+            "Please fill in all required fields for all contacts": "Please fill in all required fields for all contacts",
+            "Request created successfully": "Request created successfully",
+            "Failed to create request": "Failed to create request",
+            "Failed to load approval information": "Failed to load approval information",
+            "Request denied successfully": "Request denied successfully",
+            "Failed to deny request": "Failed to deny request",
+            "Request accepted successfully": "Request accepted successfully",
+            "Failed to accept request": "Failed to accept request",
+            "Failed to load occupant list": "Failed to load occupant list",
+            "Failed to load occupant details": "Failed to load occupant details",
+            "QR code not available": "QR code not available",
+            "Failed to load QR code": "Failed to load QR code",
+            "Room number and QR code updated successfully": "Room number and QR code updated successfully",
+            "Failed to update room number and QR code": "Failed to update room number and QR code",
+            "Failed to send email notification": "Failed to send email notification",
+            "Approver": "Approver",
+            "Dormitory listing": "Dormitory listing",
+            "Search": "Search",
+            "Reload": "Reload",
+            "New request": "New request",
+            "All": "All",
+            "To do": "To do",
+            "Processing": "Processing",
+            "Completed": "Completed",
+            "Decline/Cancel": "Decline/Cancel",
+            "action": "Action",
+            "Detail": "Detail",
+            "Deny": "Deny",
+            "Accept": "Accept",
+            "Create request": "Create request",
+            "Save": "Save",
+            "Creator information": "Creator information",
+            "Key in": "Key in",
+            "Created Name": "Created Name",
+            "Dept": "Department",
+            "Phone number": "Phone number",
+            "Contact & Stay Information": "Contact & Stay Information",
+            "Contact": "Contact",
+            "Add": "Add",
+            "Remove": "Remove",
+            "Full Name": "Full Name",
+            "Location": "Accom. Status",
+            "Gender": "Gender",
+            "Male": "Male",
+            "Female": "Female",
+            "Nationality": "Nationality",
+            "Start date": "Start date",
+            "End date": "End date",
+            "Notes": "Notes",
+            "Reason": "Reason",
+            "Room no": "Room No.",
+            "Status": "Status",
+            "Approval logs": "Approval logs",
+            "Cancel": "Cancel",
+            "Confirm Deny": "Confirm Deny",
+            "Confirm Accept": "Confirm Accept",
+            "Are you sure you want to accept this request?": "Are you sure you want to accept this request?",
+            "Download": "Download",
+            "People": "People",
+            "Complete": "Complete",
+            "Waiting GM": "Waiting GM",
+            "Waiting SMP": "Waiting SMP",
+            "Waiting GA": "Waiting GA",
+            "Waiting Dept": "Waiting Department",
+            "Denied": "Denied",
+            "Unknown Status": "Unknown Status",
+            "Rows per page": "Rows per page",
+            "Register date": "Register date",
+            "Room Occupancy": "Room Occupancy",
+            "QR": "QR Code",
+            "QR Code": "QR Code",
+            "Approval status": "Approval status",
+            "Details": "Details",
+            "Submitter": "Submitter",
+            "Click to view full reason": "Click to view full reason",
+            "Reason Details": "Reason Details",
+            "No reason available": "No reason available",
+            "Details": "Details",
+            "action": "Action",
+            "Approval status": "Approval status",
+            "Reason": "Reason",
+            "QR Code": "QR Code",
+            "'Approval logs": "Approval logs",
+            "Level": "Level",
+            "Employee No": "Employee No",
+            "Name": "Name",
+            "Email": "Email",
+            "Date": "Date",
+            "Room number updated successfully": "Room number updated successfully",
+            "Failed to update room number": "Failed to update room number",
+            "View QR": "View QR",
+            "Room": "Room",
+            "Request detail": "Request detail",
+            "Dorm Floor Plan":"Dorm Floor Plan",
+            "New Room Number": "New Room Number",
+            "Set Room": "Set Room",
+            "Please enter a room number": "Please enter a room number",
+            "Please select at least one person": "Please select at least one person",
+            "Room numbers updated successfully": "Room numbers updated successfully",
+            "Failed to update room numbers": "Failed to update room numbers",
+            "Set Room":"Set Room",
+            "Start Date":"Start Date",
+            "End Date":"End Date",
+            "Note":"Note",
+            "Room No":"Room No",
+            "Occupant Details":"Occupant Details"
+        },
+        "vi": {
+            "name.required": "Tên không được để trống",
+            "name.minLength": "Tên phải có ít nhất 2 ký tự",
+            "At least one contact is required": "Cần ít nhất một liên hệ",
+            "name.minLength": "Tên phải có ít nhất 2 ký tự",
+            "At least one contact is required": "Cần ít nhất một liên hệ",
+            "Please fill in all required fields for all contacts": "Vui lòng điền đầy đủ thông tin cho tất cả các liên hệ",
+            "Request created successfully": "Tạo yêu cầu thành công",
+            "Failed to create request": "Không thể tạo yêu cầu",
+            "Failed to load approval information": "Không thể tải thông tin phê duyệt",
+            "Request denied successfully": "Từ chối yêu cầu thành công",
+            "Failed to deny request": "Không thể từ chối yêu cầu",
+            "Request accepted successfully": "Chấp nhận yêu cầu thành công",
+            "Failed to accept request": "Không thể chấp nhận yêu cầu",
+            "Failed to load occupant list": "Không thể tải danh sách người ở",
+            "Failed to load occupant details": "Không thể tải chi tiết người ở",
+            "QR code not available": "Mã QR không khả dụng",
+            "Failed to load QR code": "Không thể tải mã QR",
+            "Room number and QR code updated successfully": "Cập nhật số phòng và mã QR thành công",
+            "Failed to update room number and QR code": "Không thể cập nhật số phòng và mã QR",
+            "Failed to send email notification": "Không thể gửi thông báo email",
+            "Approver": "Người phê duyệt",
+            "Dormitory listing": "Danh sách ký túc xá",
+            "Search": "Tìm kiếm",
+            "Reload": "Tải lại",
+            "New request": "Yêu cầu mới", 
+            "All": "Tất cả",
+            "To do": "Cần làm",
+            "Processing": "Đang xử lý",
+            "Completed": "Hoàn thành",
+            "Decline/Cancel": "Từ chối/Hủy",
+            "action": "Hành động",
+            "Detail": "Chi tiết",
+            "Deny": "Từ chối",
+            "Accept": "Chấp nhận",
+            "Create request": "Tạo yêu cầu",
+            "Save": "Lưu",
+            "Creator information": "Thông tin người tạo",
+            "Key in": "Ngày tạo",
+            "Created Name": "Tên người tạo",
+            "Dept": "Bộ phận",
+            "Phone number": "Số điện thoại",
+            "Contact & Stay Information": "Thông tin liên hệ & lưu trú",
+            "Contact": "Liên hệ",
+            "Add": "Thêm",
+            "Remove": "Xóa",
+            "Full Name": "Họ và tên",
+            "Location": "Địa điểm",
+            "Gender": "Giới tính", 
+            "Male": "Nam",
+            "Female": "Nữ",
+            "Nationality": "Quốc tịch",
+            "Start date": "Ngày bắt đầu",
+            "End date": "Ngày kết thúc",
+            "Notes": "Ghi chú",
+            "Reason": "Lý do",
+            "Room no": "Số phòng",
+            "Status": "Trạng thái",
+            "Approval logs": "Lịch sử phê duyệt",
+            "Completed": "Hoàn thành",
+            "Decline/Cancel": "Từ chối/Hủy",
+            "action": "Hành động",
+            "Detail": "Chi tiết",
+            "Deny": "Từ chối",
+            "Accept": "Chấp nhận",
+            "Create request": "Tạo yêu cầu",
+            "Save": "Lưu",
+            "Creator information": "Thông tin người tạo",
+            "Key in": "Ngày tạo",
+            "Created Name": "Tên người tạo",
+            "Dept": "Bộ phận",
+            "Phone number": "Số điện thoại",
+            "Contact & Stay Information": "Thông tin liên hệ & lưu trú",
+            "Contact": "Liên hệ",
+            "Add": "Thêm",
+            "Remove": "Xóa",
+            "Full Name": "Họ và tên",
+            "Location": "Địa điểm",
+            "Gender": "Giới tính", 
+            "Male": "Nam",
+            "Female": "Nữ",
+            "Nationality": "Quốc tịch",
+            "Start date": "Ngày bắt đầu",
+            "End date": "Ngày kết thúc",
+            "Notes": "Ghi chú",
+            "Reason": "Lý do",
+            "Room no": "Số phòng",
+            "Status": "Trạng thái",
+            "Approval logs": "Lịch sử phê duyệt",
+            "Cancel": "Hủy",
+            "Confirm Deny": "Xác nhận từ chối",
+            "Confirm Accept": "Xác nhận chấp nhận",
+            "Are you sure you want to accept this request?": "Bạn có chắc chắn muốn chấp nhận yêu cầu này?",
+            "Download": "Tải xuống",
+            "People": "Người",
+            "Complete": "Hoàn thành",
+            "Waiting GM": "Chờ GM",
+            "Waiting SMP": "Chờ SMP",
+            "Waiting GA": "Chờ GA", 
+            "Waiting Dept": "Chờ bộ phận",
+            "Denied": "Đã từ chối",
+            "Unknown Status": "Trạng thái không xác định",
+            "Rows per page": "Số dòng mỗi trang",
+            "Register date": "Ngày đăng ký",
+            "Room Occupancy": "Người ở",
+            "QR": "Mã QR",
+            "QR Code": "Mã QR",
+            "Approval status": "Trạng thái phê duyệt",
+            "Details": "Chi tiết",
+            "Submitter": "Người tạo",
+            "Click to view full reason": "Nhấn để xem lý do đầy đủ",
+            "Reason Details": "Chi tiết lý do",
+            "No reason available": "Không có lý do",
+            "Details": "Chi tiết",
+            "action": "Hành động",
+            "Approval status": "Trạng thái phê duyệt",
+            "Reason": "Lý do",
+            "QR Code": "Mã QR",
+            "Approval logs": "Lịch sử phê duyệt",
+            "Level": "Cấp phê duyệt",
+            "Employee No": "Mã nhân viên",
+            "Name": "Họ tên",
+            "Email": "Email",
+            "Date": "Ngày duyệt",
+            "Room number updated successfully": "Cập nhật số phòng thành công",
+            "Failed to update room number": "Không thể cập nhật số phòng",
+            "View QR": "Xem mã QR",
+            "Room": "Số phòng",
+            "Request detail": "Chi tiết yêu cầu",
+            "Dorm Floor Plan":"Mặt bằng ký túc xá",
+            "New Room Number": "Số phòng",
+            "Please enter a room number": "Vui lòng nhập sô phòng",
+            "Please select at least one person": "Vui lòng chọn ít nhất 1 người",
+            "Room numbers updated successfully": "Số phòng đã được cập nhật",
+            "Failed to update room numbers": "Lỗi cập nhật số phòng",
+            "Set Room":"Đặt số phòng",
+            "Start Date":"Ngày bắt đầu",
+            "End Date":"Ngày kết thúc",
+            "Note":"Ghi chú",
+            "Room No":"Số phòng",
+            "Occupant Details":"Chi tiết người ở"
+        },
+        "cn": {
+            "name.required": "姓名為必填項",
+            "name.minLength": "姓名至少需要2個字符",
+            "At least one contact is required": "至少需要一個聯絡人",
+            "Please fill in all required fields for all contacts": "請填寫所有聯絡人的必填資訊",
+            "Request created successfully": "申請建立成功",
+            "Failed to create request": "無法建立申請",
+            "Room number and QR code updated successfully": "房間號碼和QR碼更新成功",
+            "Failed to update room number and QR碼": "無法更新房間號碼和QR碼",
+            "Failed to send email notification": "無法發送電子郵件通知",
+            "Approver": "審批人",
+            "Dormitory listing": "宿舍列表",
+            "Search": "搜尋",
+            "Reload": "重新載入",
+            "New request": "新申請",
+            "All": "全部",
+            "To do": "待辦",
+            "Processing": "處理中",
+            "Completed": "已完成",
+            "Decline/Cancel": "拒絕/取消",
+            "action": "操作",
+            "Detail": "詳情",
+            "Deny": "拒絕",
+            "Accept": "接受",
+            "Create request": "建立申請",
+            "Save": "儲存",
+            "Creator information": "建立者資訊",
+            "Key in": "建立日期",
+            "Created Name": "建立者姓名",
+            "Dept": "部門",
+            "Phone number": "電話號碼",
+            "Contact & Stay Information": "聯絡人與住宿資訊",
+            "Contact": "聯絡人",
+            "Add": "新增",
+            "Remove": "移除",
+            "Full Name": "姓名",
+            "Location": "住宿人身分",
+            "Gender": "性別",
+            "Male": "男",
+            "Female": "女",
+            "Nationality": "國籍",
+            "Start date": "開始日期",
+            "End date": "結束日期",
+            "Notes": "備註",
+            "Reason": "原因",
+            "Room no": "房間號碼",
+            "Status": "狀態",
+            "Approval logs": "審批記錄",
+            "Cancel": "取消",
+            "Confirm Deny": "確認拒絕",
+            "Confirm Accept": "確認接受",
+            "Are you sure you want to accept this request?": "您確定要接受此申請嗎？",
+            "Download": "下載",
+            "People": "人",
+            "Complete": "完成",
+            "Waiting GM": "等待總經理",
+            "Waiting SMP": "等待處長",
+            "Waiting GA": "等待總務",
+            "Waiting Dept": "等待部門",
+            "Denied": "已拒絕",
+            "Unknown Status": "未知狀態",
+            "Rows per page": "每頁行數",
+            "Register date": "註冊日期",
+            "Room Occupancy": "房間住戶",
+            "QR": "QR碼",
+            "QR Code": "QR碼",
+            "Approval status": "審批狀態",
+            "Details": "詳情",
+            "Submitter": "提交者",
+            "Click to view full reason": "點擊查看完整原因",
+            "Reason Details": "原因詳情",
+            "No reason available": "沒有提供原因",
+            "Details": "詳情",
+            "action": "操作",
+            "Approval status": "審批狀態",
+            "Reason": "原因",
+            "QR Code": "QR碼",
+            "Approval logs": "審批記錄",
+            "Level": "級別",
+            "Employee No": "員工編號",
+            "Name": "姓名",
+            "Email": "電子郵件",
+            "Date": "日期",
+            "Room number updated successfully": "房間號碼更新成功",
+            "Failed to update room number": "無法更新房間號碼",
+            "View QR": "查看QR碼",
+            "Room": "房間",
+            "Request detail": "申請詳情",
+            "Dorm Floor Plan":"宿舍平面圖",
+            "New Room Number": "New Room Number",
+            "Set Room": "Set Room",
+            "Please enter a room number": "請輸入房間號碼",
+            "Please select at least one person": "請至少選擇一個人",
+            "Room numbers updated successfully": "房間號碼更新成功",
+            "Failed to update room numbers": "房間號碼更新失敗",
+            "Set Room":"設定房間",
+            "Start Date":"開始日期",
+            "End Date":"結束日期",
+            "Note":"備註",
+            "Room No":"房間號碼",
+            "Occupant Details":"住戶詳情"
+        }
+    }
+</i18n>

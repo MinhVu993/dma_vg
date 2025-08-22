@@ -1,0 +1,38 @@
+{
+  "files.exclude": {
+    "**/.nuxt": true,
+    "**/node_modules": true
+  },
+  "editor.fontFamily": "JetBrains Mono",
+  "editor.fontSize": 13,
+  "editor.fontLigatures": true,
+  "editor.fontWeight": "bold",
+  "[vue]": {
+    "editor.defaultFormatter": "Vue.volar"
+  },
+  "git.postCommitCommand": "push",
+  "editor.formatOnPaste": false,
+  "editor.formatOnSave": false,
+  "editor.formatOnType": false,
+  "vue.server.hybridMode": true,
+  "workbench.colorCustomizations": {
+    "activityBar.activeBackground": "#734738",
+    "activityBar.background": "#734738",
+    "activityBar.foreground": "#e7e7e7",
+    "activityBar.inactiveForeground": "#e7e7e799",
+    "activityBarBadge.background": "#49965d",
+    "activityBarBadge.foreground": "#e7e7e7",
+    "commandCenter.border": "#e7e7e799",
+    "sash.hoverBorder": "#734738",
+    "statusBar.background": "#513227",
+    "statusBar.foreground": "#e7e7e7",
+    "statusBarItem.hoverBackground": "#734738",
+    "statusBarItem.remoteBackground": "#513227",
+    "statusBarItem.remoteForeground": "#e7e7e7",
+    "titleBar.activeBackground": "#513227",
+    "titleBar.activeForeground": "#e7e7e7",
+    "titleBar.inactiveBackground": "#51322799",
+    "titleBar.inactiveForeground": "#e7e7e799"
+  },
+  "peacock.color": "#513227"
+}
