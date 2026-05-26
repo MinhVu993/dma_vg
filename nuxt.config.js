@@ -5,13 +5,11 @@ import cn from "vuetify/es5/locale/zh-Hant";
 
 export default {
   publicRuntimeConfig: {
-    isDev: true,
+    isDev: process.env.NODE_ENV !== "production",
     globalUserApi:
-    process.env.GLOBAL_USER_API ||
-    "http://gmo021.cansportsvg.com/api/global-user/",
+      process.env.GLOBAL_USER_API || "/api/global-user/",
     storageUrl:
-    process.env.STORAGE_URL ||
-    "http://gmo021.cansportsvg.com/api/storage/app/",
+      process.env.STORAGE_URL || "/api/storage/app/",
   },
   // Disable server-side rendering: https://go.nuxtjs.dev/ssr-mode
   loading: {
@@ -20,7 +18,7 @@ export default {
   },
   ssr: false,
   server: {
-    host: process.env.HOST || "10.13.34.160",
+    host: process.env.HOST || "0.0.0.0",
     port: 3041,
   },
   // Target: https://go.nuxtjs.dev/config-target
@@ -82,6 +80,9 @@ export default {
     "nuxtjs-mdi-font",
   ],
   axios: {
+    baseURL: '/', 
+    browserBaseURL: '/',
+    proxy: true, // Enable proxy in development
     headers: {
       common: {
         http_x_vg_authentication: "vg-serect-token",
@@ -89,7 +90,19 @@ export default {
     },
   },
   // Modules: https://go.nuxtjs.dev/config-modules
-  modules: ["@nuxtjs/axios", "nuxt-i18n"],
+  modules: ["@nuxtjs/axios", "@nuxtjs/proxy", "nuxt-i18n"],
+  proxy: {
+    '/api/': { 
+      target: process.env.API_URL || 'http://gmo021.cansportsvg.com', // Points to backend API
+      pathRewrite: { '^/api/': '/api/' },
+      changeOrigin: true
+    },
+    '/ga/dma/api/': { 
+      target: process.env.API_URL || 'http://gmo021.cansportsvg.com', 
+      pathRewrite: { '^/ga/dma/api/': '/api/' },
+      changeOrigin: true
+    }
+  },
   i18n: {
     defaultLocale: "en",
     vueI18nLoader: true,

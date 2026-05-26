@@ -4,9 +4,9 @@ import { normalizeURL, decode } from 'ufo'
 import { interopDefault } from './utils'
 import scrollBehavior from './router.scrollBehavior.js'
 
-const _026eb083 = () => interopDefault(import('..\\pages\\dashboard.vue' /* webpackChunkName: "pages/dashboard" */))
-const _260850a4 = () => interopDefault(import('..\\pages\\index copy.vue' /* webpackChunkName: "pages/index copy" */))
-const _2983e341 = () => interopDefault(import('..\\pages\\index.vue' /* webpackChunkName: "pages/index" */))
+const _07170bd4 = () => interopDefault(import('../pages/dashboard.vue' /* webpackChunkName: "pages/dashboard" */))
+const _9329411a = () => interopDefault(import('../pages/index copy.vue' /* webpackChunkName: "pages/index copy" */))
+const _da0ee1dc = () => interopDefault(import('../pages/index.vue' /* webpackChunkName: "pages/index" */))
 
 const emptyFn = () => {}
 
@@ -21,15 +21,15 @@ export const routerOptions = {
 
   routes: [{
     path: "/dashboard",
-    component: _026eb083,
+    component: _07170bd4,
     name: "dashboard"
   }, {
     path: "/index%20copy",
-    component: _260850a4,
+    component: _9329411a,
     name: "index copy"
   }, {
     path: "/",
-    component: _2983e341,
+    component: _da0ee1dc,
     name: "index"
   }],
 

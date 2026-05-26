@@ -280,124 +280,162 @@
             <v-card-text>
                 <v-row>
                     <v-col cols="12">
-                        <v-textarea v-model="reason" :label="$t('Reason')" outlined auto-grow rows="1" dense :disabled="isViewDetail"
-                        hide-details> </v-textarea>
+                        <v-textarea
+                        v-model="reason"
+                        :label="$t('Reason')"
+                        outlined
+                        auto-grow
+                        rows="3"
+                        :disabled="isViewDetail"
+                        :rules="[v => !!v || $t('Reason is required')]"
+                        hide-details
+                        clearable
+                        > </v-textarea>
                     </v-col>
                 </v-row>
-                <v-row dense v-for="(contact, index) in contacts" :key="index">
-                    <v-col cols="12" class="d-flex align-center py-1">
-                        <div class="grey--text text-caption mr-2">{{ $t('Contact') }} #{{ index + 1 }}
-                        </div>
-                        <v-btn color="success" x-small class="mr-2" @click="addContactAfter(index)"
-                        :disabled="isViewDetail || contacts.length >= 30"> <v-icon x-small left>mdi-plus</v-icon> {{
-                            $t('Add') }} </v-btn>
-                            <v-btn color="error" x-small @click="removeContactAt(index)"
-                            :disabled="isViewDetail || contacts.length <= 1"> <v-icon x-small left>mdi-minus</v-icon> {{
-                                $t('Remove') }} </v-btn>
-                            </v-col>
-                            <v-col cols="12" sm="3" md="2">
-                                <v-text-field v-model="contact.fullName" :rules="formRules.contact.fullName" :disabled="isViewDetail"
-                                :label="$t('Full Name')" hide-details outlined dense></v-text-field>
-                            </v-col>
-                            <v-col cols="12" sm="6" md="1">
-                                <v-combobox v-model="contact.location" :rules="formRules.contact.location" :disabled="isViewDetail"
-                                :items="itemLoc" :label="$t('Location')" hide-details item-text="loc"
-                                item-value="loc" outlined dense> </v-combobox>
-                            </v-col>
-                            <v-col cols="12" md="2">
-                                <v-radio-group v-model="contact.gender" row class="mt-0" hide-details :disabled="isViewDetail">
-                                    <template v-slot:label>
-                                        <div class="teal--text font-weight-medium">{{ $t('Gender') }}</div>
-                                    </template>
-                                    <v-radio :label="$t('Male')" value="M">
-                                        <template v-slot:label>
-                                            <v-icon left small color="blue">mdi-gender-male</v-icon>
-                                            {{ $t('Male') }}
-                                        </template>
-                                    </v-radio>
-                                    <v-radio :label="$t('Female')" value="F">
-                                        <template v-slot:label>
-                                            <v-icon left small color="pink">mdi-gender-female</v-icon>
-                                            {{ $t('Female') }}
-                                        </template>
-                                    </v-radio>
-                                </v-radio-group>
-                            </v-col>
-                            <!-- thêm trường nhập ngày sinh, định dạng yyyy/mm/dd, sử dụng text-field -->
-                            <v-col cols="12" sm="6" md="1">
-                                <v-text-field v-model="contact.dateBirth" :label="$t('Birth day')" outlined dense hide-details :disabled="isViewDetail"
-                                v-mask="'####/##/##'" placeholder="YYYY/MM/DD" :rules="formRules.contact.dateBirth"></v-text-field>
-                            </v-col>
-                            <v-col cols="12" md="1">
-                                <v-select v-model="contact.nationality" :rules="formRules.contact.nationality" :disabled="isViewDetail"
-                                :items="formattedNationalities" item-text="text" item-value="value"
-                                :label="$t('Nationality')" hide-details outlined dense clearable
-                                @change="handleNationalityChange($event, index)">
-                            </v-select>
-                        </v-col>
-                        <v-col cols="12" sm="6" md="1">
-                            <v-menu v-model="contact.checkStartDate" :close-on-content-click="false"
-                            transition="scale-transition" offset-y min-width>
-                            <template v-slot:activator="{ on, attrs }">
-                                <v-text-field hide-details v-model="contact.startDate"
-                                :label="$t('Start date')" :rules="formRules.contact.startDate"
-                                readonly v-bind="attrs" v-on="on" outlined dense clearable :disabled="isViewDetail"
-                                @click:clear="contact.startDate = ''"> </v-text-field>
-                            </template>
-                            <v-date-picker v-model="contact.startDate" :min="today"
-                            @input="contact.checkStartDate = false"> </v-date-picker>
-                        </v-menu>
-                    </v-col>
-                    <v-col cols="12" sm="6" md="1" v-if="contact.location.loc !== 'VG'">
-                        <v-menu v-model="contact.checkEndDate" :close-on-content-click="false"
-                        transition="scale-transition" offset-y min-width>
-                        <template v-slot:activator="{ on, attrs }">
-                            <v-text-field hide-details v-model="contact.endDate"
-                            :label="$t('End date')" readonly v-bind="attrs" v-on="on" outlined :disabled="isViewDetail"
-                            dense clearable @click:clear="contact.endDate = ''"> </v-text-field>
-                        </template>
-                        <v-date-picker v-model="contact.endDate" :min="contact.startDate"
-                        @input="contact.checkEndDate = false"> </v-date-picker>
-                    </v-menu>
-                </v-col>
-                <v-col cols="12" :md="String(contact.nationality) === 'VN' || (contact.nationality && String(contact.nationality) !== 'VN') ? 2 : 3">
-                    <v-textarea v-model="contact.notes" :label="$t('Notes')" outlined auto-grow :disabled="isViewDetail" rows="1" dense hide-details />
-                </v-col>
-                <v-col cols="12" md="1" v-if="String(contact.nationality) === 'VN'">
-                    <v-text-field
-                    v-model="contact.citizenId"
-                    :label="$t('Citizen ID')"
-                    outlined
-                    dense
-                    :disabled="isViewDetail" 
-                    hide-details
-                    :rules="[
-                    v => !!v || $t('Citizen ID is required'),
-                    v => /^\d{9,}$/.test(v) || $t('Citizen ID must be at least 9 digits and only numbers')
-                    ]"
-                    maxlength="12"
-                    clearable
-                    @input="e => contact.citizenId = e ? e.replace(/\D/g, '') : ''"
-                    />
-                </v-col>
-                
-                <v-col cols="12" md="1" v-if="contact.nationality && String(contact.nationality) !== 'VN'">
-                    <v-text-field
-                    v-model="contact.passportNumber"
-                    :label="$t('Passport no.')"
-                    outlined
-                    dense
-                    :disabled="isViewDetail"
-                    hide-details
-                    :rules="[ v => !!v || $t('Passport number is required') ]"
-                    maxlength="20"
-                    clearable
-                    @input="e => contact.passportNumber = e ? e.toUpperCase() : ''"
-                    />
-                </v-col>
-            </v-row>
-        </v-card-text>
-    </v-card>
+                <v-row dense v-for="(contact, index) in contacts" :key="index" class="contact-row mb-2">
+                    <!-- HEADER ROW: contact number + actions -->
+                    <v-col cols="12" class="d-flex align-center py-1 contact-header">
+                        <!-- <v-chip x-small color="teal" dark class="mr-2 font-weight-bold">
+                            <v-icon x-small left>mdi-account</v-icon>
+                            {{ $t('Contact') }} #{{ index + 1 }}
+                        </v-chip> -->
+                        <v-btn color="success" x-small class="mr-1" @click="addContactAfter(index)"
+                        :disabled="isViewDetail || contacts.length >= 30" depressed>
+                        <v-icon x-small left>mdi-plus</v-icon>{{ $t('Add') }}
+                    </v-btn>
+                    <v-btn color="error" x-small @click="removeContactAt(index)"
+                    :disabled="isViewDetail || contacts.length <= 1" depressed>
+                    <v-icon x-small left>mdi-minus</v-icon>{{ $t('Remove') }}
+                </v-btn>
+            </v-col>
+            
+            <!-- ROW 1: Personal Info -->
+            <v-col cols="12" sm="6" md="2">
+                <v-text-field v-model="contact.fullName" :rules="formRules.contact.fullName"
+                :disabled="isViewDetail" :label="$t('Full Name')" hide-details outlined dense>
+            </v-text-field>
+        </v-col>
+        <v-col cols="6" sm="3" md="1">
+            <v-combobox v-model="contact.location" :rules="formRules.contact.location"
+            :disabled="isViewDetail" :items="itemLoc" :label="$t('Location')"
+            hide-details item-text="loc" item-value="loc" outlined dense>
+        </v-combobox>
+    </v-col>
+    <v-col cols="6" sm="3" md="2" class="d-flex flex-column justify-end">
+        <!-- <span class="text-caption teal--text font-weight-medium mb-1" style="line-height: 1;">{{ $t('Gender') }}</span> -->
+        <v-btn-toggle v-model="contact.gender" mandatory dense class="custom-gender-toggle w-100" :disabled="isViewDetail">
+            <v-btn value="M" class="gender-btn flex-grow-1" active-class="male-active" :ripple="false">
+                <v-icon small class="mr-1 gender-icon">mdi-gender-male</v-icon>
+                <span>{{ $t('Male') }}</span>
+            </v-btn>
+            <v-btn value="F" class="gender-btn flex-grow-1" active-class="female-active" :ripple="false">
+                <v-icon small class="mr-1 gender-icon">mdi-gender-female</v-icon>
+                <span>{{ $t('Female') }}</span>
+            </v-btn>
+        </v-btn-toggle>
+    </v-col>
+    <v-col cols="6" sm="3" md="1">
+        <v-text-field v-model="contact.dateBirth" :label="$t('Birth day')" outlined dense
+        hide-details :disabled="isViewDetail" v-mask="'####/##/##'"
+        placeholder="YYYY/MM/DD" :rules="formRules.contact.dateBirth">
+    </v-text-field>
+</v-col>
+<v-col cols="6" sm="3" md="1">
+    <v-select v-model="contact.nationality" :rules="formRules.contact.nationality"
+    :disabled="isViewDetail" :items="formattedNationalities"
+    item-text="text" item-value="value" :label="$t('Nationality')"
+    hide-details outlined dense clearable
+    @change="handleNationalityChange($event, index)">
+</v-select>
+</v-col>
+<v-col cols="6" sm="3" md="1">
+    <v-menu v-model="contact.checkStartDate" :close-on-content-click="false"
+    transition="scale-transition" offset-y min-width>
+    <template v-slot:activator="{ on, attrs }">
+        <v-text-field hide-details v-model="contact.startDate"
+        :label="$t('Start date')" :rules="formRules.contact.startDate"
+        readonly v-bind="attrs" v-on="on" outlined dense clearable
+        :disabled="isViewDetail" @click:clear="contact.startDate = ''">
+    </v-text-field>
+</template>
+<v-date-picker v-model="contact.startDate" :min="today"
+@input="contact.checkStartDate = false">
+</v-date-picker>
+</v-menu>
+</v-col>
+<v-col cols="6" sm="3" md="1" v-if="contact.location.loc !== 'VG'">
+    <v-menu v-model="contact.checkEndDate" :close-on-content-click="false"
+    transition="scale-transition" offset-y min-width>
+    <template v-slot:activator="{ on, attrs }">
+        <v-text-field hide-details v-model="contact.endDate" :label="$t('End date')"
+        readonly v-bind="attrs" v-on="on" outlined :disabled="isViewDetail"
+        dense clearable @click:clear="contact.endDate = ''"
+        :rules="[v => (contact.location.loc !== 'VG' && !!v) || contact.location.loc === 'VG' || $t('End date is required')]">
+    </v-text-field>
+</template>
+<v-date-picker v-model="contact.endDate" :min="contact.startDate"
+@input="contact.checkEndDate = false">
+</v-date-picker>
+</v-menu>
+</v-col>
+<v-col cols="12" sm="6" :md="(!contact.location || contact.location.loc !== 'VG') ? 3 : 4">
+    <v-textarea v-model="contact.notes" :label="$t('Notes')" outlined auto-grow
+    :disabled="isViewDetail" rows="1" dense hide-details>
+</v-textarea>
+</v-col>
+
+<!-- ROW 2: Document & Address Info -->
+<v-col cols="12">
+    <v-divider class="mb-2">
+        <span class="grey--text text-caption px-2">{{ $t('Document & Address') }}</span>
+    </v-divider>
+</v-col>
+<v-col cols="6" sm="4" md="2">
+    <v-autocomplete v-model="contact.docType" :items="docTypes" item-text="name" item-value="id"
+    :label="$t('Doc Type')" outlined dense hide-details clearable :disabled="isViewDetail">
+</v-autocomplete>
+</v-col>
+<v-col cols="6" sm="4" md="2">
+    <v-text-field
+    v-model="contact.docNumber"
+    :label="docTypes.find(d => d.id === contact.docType) ? ($t('Doc Number Prefix') + ' ' + $t(docTypes.find(d => d.id === contact.docType).name)) : $t('Doc Number')"
+    outlined dense :disabled="isViewDetail" hide-details
+    clearable maxlength="30">
+</v-text-field>
+</v-col>
+<v-col cols="6" sm="4" md="2" v-if="String(contact.nationality) === 'VNM'">
+    <v-autocomplete v-model="contact.resReason" :items="resReasons" item-text="res_reason" item-value="id"
+    :label="$t('Residence Reason')" outlined dense hide-details clearable :disabled="isViewDetail">
+</v-autocomplete>
+</v-col>
+<v-col cols="6" sm="4" md="2" v-if="String(contact.nationality) === 'VNM'">
+    <v-autocomplete v-model="contact.resType" :items="resTypes" item-text="name" item-value="id"
+    :label="$t('Residence Type')" outlined dense hide-details clearable :disabled="isViewDetail">
+</v-autocomplete>
+</v-col>
+<v-col cols="6" sm="4" md="2" v-if="String(contact.nationality) === 'VNM'">
+    <v-autocomplete v-model="contact.province" :items="provinces" item-text="name" item-value="code"
+    :label="$t('Province')" outlined dense hide-details clearable
+    :disabled="isViewDetail" @change="contact.ward = null">
+</v-autocomplete>
+</v-col>
+<v-col cols="6" sm="4" md="2" v-if="String(contact.nationality) === 'VNM'">
+    <v-autocomplete v-model="contact.ward"
+    :items="wards.filter(w => w.province_code === contact.province)"
+    item-text="name" item-value="code" :label="$t('Ward')"
+    outlined dense hide-details clearable
+    :disabled="!contact.province || isViewDetail">
+</v-autocomplete>
+</v-col>
+<v-col cols="12" v-if="String(contact.nationality) === 'VNM'">
+    <v-textarea v-model="contact.detailedAddress" :label="$t('Detailed Address')"
+    outlined auto-grow :disabled="isViewDetail" rows="2" dense hide-details>
+</v-textarea>
+</v-col>
+</v-row>
+</v-card-text>
+</v-card>
 </v-container>
 </v-form>
 </v-card>
@@ -887,8 +925,8 @@
 </v-row>
 </template>
 <script>
-// import VfaAppFlow from "../../../@global-component/vfa-comp";
-import VfaAppFlow from 'D:/source/@global-component/vfa-comp';
+import VfaAppFlow from "../../../@global-component/vfa-comp";
+// import VfaAppFlow from 'D:/source/@global-component/vfa-comp';
 import DSFilter from '@/components/DsFilter.vue'
 import dayjs from "dayjs";
 import * as XLSX from 'xlsx';
@@ -901,9 +939,9 @@ export default {
             id: '',
             today: dayjs().format('YYYY-MM-DD'),
             loading: true,
-            api: 'http://gmo021.cansportsvg.com/api/vgDorm/',
-            msgApi: "http://gmo021.cansportsvg.com/api/msg-center/sendOutMsg",
-            storage_api: "http://gmo021.cansportsvg.com/api/vgDorm/getQRCode/",
+            api: '/api/vgDorm/',
+            msgApi: "/api/msg-center/sendOutMsg",
+            storage_api: "/api/vgDorm/getQRCode/",
             headers: [
             { text: this.$t('Action'), value: "action",  align: 'center' },
             { text: this.$t('Details'), value: "details",  align: 'center' },
@@ -968,10 +1006,15 @@ export default {
                 notes: '',
                 checkStartDate: false,
                 checkEndDate: false,
-                // Thêm các trường mới vào dữ liệu lưu
                 citizenId: '',
                 passportNumber: '',
-                
+                docNumber: '',
+                docType: null,
+                resReason: null,
+                resType: null,
+                province: null,
+                ward: null,
+                detailedAddress: '',
             }],
             reason: '',
             itemLoc: [],
@@ -1009,6 +1052,11 @@ export default {
             editingNameRoom: null,
             editingItem: null,
             isComponentReady: false, 
+            docTypes: [],
+            provinces: [],
+            resReasons: [],
+            resTypes: [],
+            wards: [],
             submitterInfo: {
                 submit_date: '',
                 name: '',
@@ -1029,6 +1077,9 @@ export default {
                     v => !v || (v && v >= this.contacts[0].startDate) || this.$t('End date must be after start date')
                     ],
                     dateBirth: [v => !!v || this.$t('Date of birth is required')],
+                    reason: [
+                    v => !!v || this.$t('Reason is required')
+                    ]
                 }
             },
             formValid: false
@@ -1260,6 +1311,20 @@ export default {
                 console.log(error);
             }
         },
+        async getDormMasterData() {
+            try {
+                const res = await this.$axios.get(this.api + 'getDormMasterData');
+                if (res.data.success) {
+                    this.docTypes = res.data.data.docTypes || [];
+                    this.provinces = res.data.data.provinces || [];
+                    this.resReasons = res.data.data.resReasons || [];
+                    this.resTypes = res.data.data.resTypes || [];
+                    this.wards = res.data.data.wards || [];
+                }
+            } catch (error) {
+                console.error("Failed to fetch Dorm Master Data:", error);
+            }
+        },
         handleAppFlow(appFlow) {
             // console.log(appFlow);
             this.dataAppFlow = appFlow.map((item, index) => ({
@@ -1286,6 +1351,14 @@ export default {
                     this.$notify({
                         title: 'Error',
                         text: this.$t('At least one contact is required'),
+                        type: 'error'
+                    });
+                    return;
+                }
+                if (!this.reason || this.reason.trim() === '') {
+                    this.$notify({
+                        title: 'Error',
+                        text: this.$t('Reason is required'),
                         type: 'error'
                     });
                     return;
@@ -1329,6 +1402,13 @@ export default {
                         citizen_id: contact.citizenId,
                         dateBirth: contact.dateBirth,
                         passport_number: contact.passportNumber,
+                        doc_number: contact.docNumber,
+                        doc_type: contact.docType,
+                        res_reason: contact.resReason,
+                        res_type: contact.resType,
+                        province_id: contact.province,
+                        ward_id: contact.ward,
+                        detailed_address: contact.detailedAddress,
                     };
                 });
                 const data = {
@@ -1359,31 +1439,37 @@ export default {
                 };
                 await this.$axios.post(this.api + 'savedb', data);
                 
-                // const link = "http://gmo021.cansportsvg.com/ga/dma";
-                // const target = this.activeUser.location.toLocaleUpperCase() + "-EXPAT-" + this.activeUser.dept;
+                const link = typeof window !== 'undefined' ? (window.location.origin + "/ga/dma") : "/ga/dma";
+                const target = this.activeUser.location.toLocaleUpperCase() + "-EXPAT-" + this.activeUser.dept;
                 
-                // // const target = 'dma';
+                // const target = 'dma';
                 
-                // const emailData = {
-                //     dept: this.activeUser.dept,
-                //     count: contactsArray.length,
-                //     rows: contactsArray.map(person => ({
-                //         name: person.name,
-                //         nation: this.getLocalizedNation(person.nation),
-                //         gender: person.gender === 'F' ? 'Female/女' : 'Male/男',
-                //         start_date: person.start_date,
-                //         end_date: person.end_date,
-                //         note: person.note || '',
-                //         location: person.location
-                //     })),
-                //     link: link
-                // };
+                const emailData = {
+                    dept: this.activeUser.dept,
+                    count: contactsArray.length,
+                    rows: contactsArray.map(person => ({
+                        name: person.name,
+                        nation: this.getLocalizedNation(person.nation),
+                        gender: person.gender === 'F' ? 'Female/女' : 'Male/男',
+                        start_date: person.start_date,
+                        end_date: person.end_date,
+                        note: person.note || '',
+                        location: person.location,
+                        doc_type: person.doc_type,
+                        res_reason: person.res_reason,
+                        res_type: person.res_type,
+                        province_id: person.province_id,
+                        ward_id: person.ward_id,
+                        detailed_address: person.detailed_address
+                    })),
+                    link: link
+                };
                 
-                // await this.$axios.post(this.api + 'sendNewRequestNotification', {
-                //     target: target,
-                //     emailData: emailData,
-                //     managers: this.listDeptManagerLvl1
-                // });
+                await this.$axios.post(this.api + 'sendNewRequestNotification', {
+                    target: target,
+                    emailData: emailData,
+                    managers: this.listDeptManagerLvl1
+                });
                 
                 // Refresh data and reset form
                 await this.getDormData();
@@ -1452,6 +1538,14 @@ export default {
                 checkEndDate: false,
                 citizenId: '',
                 passportNumber: '',
+                docType: '',
+                resReason: '',
+                resType: '',
+                provinceId: '',
+                wardId: '',
+                detailedAddress: '',
+                dateBirth: '',
+                
             }];
             this.submitterInfo = {
                 submit_date: '',
@@ -1518,6 +1612,13 @@ export default {
                     dateBirth: person.dateBirth || '',
                     citizenId: person.citizen_id || '',
                     passportNumber: person.passport_number || '',
+                    docNumber: person.doc_number || '',
+                    docType: person.doc_type || null,
+                    resReason: person.res_reason || null,
+                    resType: person.res_type || null,
+                    province: person.province_id || null,
+                    ward: person.ward_id || null,
+                    detailedAddress: person.detailed_address || '',
                     
                 }));
                 
@@ -1857,14 +1958,10 @@ export default {
             }
         },
         
-        // Add a new helper method to determine current approval level
         getCurrentApprovalLevel(status) {
-            // Level 1: Department đang chờ duyệt
             if (status[0]?.dept === "false" && status[0]?.stt === "waiting dept") {
                 return 1;
             }
-            
-            // Level 2: Department đã duyệt, đang chờ GA
             if (status[0]?.dept === "true" && status[0]?.stt === "accept" &&
             (status[1]?.ga === "false" || status[1]?.stt === "waiting ga")) {
                 return 2;
@@ -2209,6 +2306,13 @@ export default {
                 checkEndDate: false,
                 citizenId: '',
                 passportNumber: '',
+                docNumber: '',
+                docType: null,
+                resReason: null,
+                resType: null,
+                province: null,
+                ward: null,
+                detailedAddress: '',
             };
             
             this.contacts.splice(index + 1, 0, newContact);
@@ -2843,9 +2947,10 @@ export default {
                 this.$router.push({ path: "/" });
                 return;
             }
-            this.getDormData(),
-            this.getLoc(),
-            this.getNation()
+            this.getDormData();
+            this.getLoc();
+            this.getNation();
+            this.getDormMasterData();
             // Set default tab after data is loaded
             this.$nextTick(() => {
                 this.setDefaultTab();
@@ -2870,6 +2975,49 @@ export default {
 <style scoped>
 .btn-hover:hover {
     margin: 0 auto;
+}
+
+.custom-gender-toggle {
+    border: 1px solid rgba(0, 0, 0, 0.24) !important;
+    border-radius: 4px !important;
+    height: 40px !important;
+    overflow: hidden;
+    background-color: #fafafa !important;
+    display: flex;
+}
+
+.gender-btn {
+    border: none !important;
+    border-radius: 0 !important;
+    height: 38px !important;
+    background: transparent !important;
+    text-transform: none !important;
+    font-size: 0.875rem !important;
+    font-weight: 500 !important;
+    color: rgba(0, 0, 0, 0.6) !important;
+    transition: all 0.25s ease !important;
+    letter-spacing: normal !important;
+    box-shadow: none !important;
+}
+
+.gender-btn:hover {
+    background-color: rgba(0, 0, 0, 0.04) !important;
+}
+
+.gender-btn.male-active {
+    background-color: #e3f2fd !important;
+    color: #1565c0 !important;
+}
+.gender-btn.male-active .gender-icon {
+    color: #1565c0 !important;
+}
+
+.gender-btn.female-active {
+    background-color: #fce4ec !important;
+    color: #c2185b !important;
+}
+.gender-btn.female-active .gender-icon {
+    color: #c2185b !important;
 }
 
 .v-data-table {
@@ -3268,8 +3416,27 @@ export default {
             "Citizen ID":"Citizen ID",
             "Passport Number":"Passport Number",
             "Birth day":"Birth day",
-            "Passport no.":"Passport no."
-            
+            "Passport no.": "Passport no.",
+            "Doc Type": "Document Type",
+            "Doc Number": "Document Number",
+            "Doc Number Prefix": "No.",
+            "Residence Reason": "Residence Reason",
+            "Residence Type": "Residence Type",
+            "Province": "Province / City",
+            "Ward": "Ward / Commune",
+            "Detailed Address": "Detailed Address",
+            "Document & Address": "Document & Address",
+            "Thẻ CCCD": "Citizen ID Card",
+            "Hộ chiếu": "Passport",
+            "Giấy phép lái xe": "Driver's License",
+            "CMND": "ID Card",
+            "Khác": "Other",
+            "Thẻ CMND": "ID Card",
+            "Giấy khai sinh": "Birth Certificate",
+            "Thẻ BHYT": "Health Insurance Card",
+            "Thông báo số định danh cá nhân": "Personal Identification Number Notification",
+            "Thẻ Căn Cước": "Citizen ID Card",
+            "Giấy Tờ Khác": "Other Documents"
         },
         "vi": {
             "name.required": "Tên không được để trống",
@@ -3416,7 +3583,27 @@ export default {
             "Citizen ID":"CMND/CCCD",
             "Passport Number":"Số hộ chiếu",
             "Birth day":"Ngày sinh",
-            "Passport no.":"Số hộ chiếu"
+            "Passport no.": "Số hộ chiếu",
+            "Doc Type": "Loại giấy tờ",
+            "Doc Number": "Số giấy tờ",
+            "Doc Number Prefix": "Số",
+            "Residence Reason": "Lý do cư trú",
+            "Residence Type": "Loại cư trú",
+            "Province": "Tỉnh / Thành phố",
+            "Ward": "Phường / Xã",
+            "Detailed Address": "Địa chỉ chi tiết",
+            "Document & Address": "Giấy tờ & Địa chỉ",
+            "Thẻ CCCD": "Thẻ CCCD",
+            "Hộ chiếu": "Hộ chiếu",
+            "Giấy phép lái xe": "Giấy phép lái xe",
+            "CMND": "CMND",
+            "Khác": "Khác",
+            "Thẻ CMND": "CMND",
+            "Giấy khai sinh":"Giấy khai sinh",
+            "Thẻ BHYT": "BHYT",
+            "Thông báo số định danh cá nhân": "Thông báo số định danh cá nhân",
+            "Thẻ Căn Cước": "Thẻ Căn Cước",
+            "Giấy Tờ Khác": "Khác"
         },
         "cn": {
             "name.required": "姓名為必填項",
@@ -3522,7 +3709,27 @@ export default {
             "Citizen ID":"公民身份證號碼",
             "Passport Number":"護照號碼",
             "Birth day":"出生日期",
-            "Passport no.":"護照號碼"
+            "Passport no.": "護照號碼",
+            "Doc Type": "證件類型",
+            "Doc Number": "證件號碼",
+            "Doc Number Prefix": "號碼",
+            "Residence Reason": "居住原因",
+            "Residence Type": "居住類型",
+            "Province": "省 / 市",
+            "Ward": "鄉 / 區",
+            "Detailed Address": "詳細地址",
+            "Document & Address": "證件 & 地址",
+            "Thẻ CCCD": "公民身份證",
+            "Hộ chiếu": "護照",
+            "Giấy phép lái xe": "駕照",
+            "CMND": "身份證",
+            "Khác": "其他",
+            "Thẻ CMND": "身份證",
+            "Giấy khai sinh":"出生證明",
+            "Thẻ BHYT": "醫療保險卡",
+            "Thông báo số định danh cá nhân": "個人身份識別號碼通知",
+            "Thẻ Căn Cước": "身份證",
+            "Giấy Tờ Khác": "其他證件"
         }
     }
 </i18n>

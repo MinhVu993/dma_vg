@@ -24,6 +24,7 @@
     "jspdf-autotable": "^3.8.4",
     "nuxt": "^2.15.3",
     "nuxt-i18n": "^6.27.0",
+    "@nuxtjs/proxy": "^2.1.0",
     "nuxtjs-mdi-font": "^1.0.2",
     "qr-scanner": "^1.4.1",
     "qrcode": "^1.5.4",

@@ -40,7 +40,7 @@
                 <v-app-bar-nav-icon @click.stop="drawer = !drawer" />
                 <v-toolbar-title v-text="$t('appname')" />
                 <v-chip class="ma-2" color="white" label small outlined @click:close="chip4 = false">
-                    V.1.0
+                    V.2.0
                 </v-chip>
 
                 <v-spacer />
@@ -60,26 +60,26 @@
                     <nuxt />
                 </v-container>
             </v-main>
-            <v-footer class="noPrint" :absolute="!fixed" app>
+            <!-- <v-footer class="noPrint" :absolute="!fixed" app>
                 <small>&copy; {{ new Date().getFullYear() }} Developed by VG - Project
                     team</small>
                 <v-spacer></v-spacer>
 
-            </v-footer>
+            </v-footer> -->
         </v-app>
-        <AuthComp ref="authComp" app="dma" @setUser="setUser" />
+        <AuthComp ref="authComp" app="dma" apiUrl="/api" @setUser="setUser" />
     </div>
 </template>
 <script>
-// import AuthComp from "../../../@global-component/auth-comp";
-import AuthComp from 'D:/source/@global-component/auth-comp.vue';
+import AuthComp from "../../../@global-component/auth-comp";
+// import AuthComp from 'D:/source/@global-component/auth-comp.vue';
 export default {
     components: {
         AuthComp,
     },
     data() {
         return {
-            apiGlobalUser: "http://gmo021.cansportsvg.com/api/global-user/",
+            apiGlobalUser: "/api/global-user/",
             loaded: false,
             clipped: false,
             drawer: false,
@@ -100,12 +100,12 @@ export default {
                 {
                     icon: "mdi-apps",
                     title: "User manual",
-                    href: "http://gmo021.cansportsvg.com/shared/user-manual/dma/dma.pdf"
+                    href: "/shared/user-manual/dma/dma.pdf"
                 },
                 {
                     icon: "mdi-map-marker-radius",
                     title: "Go home",
-                    href: "http://gmo021.cansportsvg.com/"
+                    href: "/"
                 }
             ],
         };
@@ -149,12 +149,9 @@ export default {
                 if (res.status === 200 && res.data.status) {
                     if (res.data.data.length === 0) {
                         alert(`${this.$i18n.t('accessDenied', 'en')}\n ${this.$i18n.t('accessDenied', 'cn')}\n ${this.$i18n.t('accessDenied', 'vi')}`);
-                        window.location.href = "http://gmo021.cansportsvg.com";
+                        window.location.href = "/";
                     }
-
                     this.userCompanies = res.data.data.map(item => item.company.code);
-                    console.log("User companies:", company.code);
-                    
                     if (!this.selectedCompany && this.userCompanies.length > 0) {
                         this.selectCompany(this.userCompanies[0]);
                     }

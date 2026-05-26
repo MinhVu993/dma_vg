@@ -1,0 +1,1 @@
+(window.webpackJsonp=window.webpackJsonp||[]).push([[6],{681:function(n,t,e){"use strict";e.r(t);var o={data:function(){return{}},beforeMount:function(){this.$session.has("dma")||this.$router.push("./")}},r=e(46),component=Object(r.a)(o,function(){return(0,this._self._c)("div")},[],!1,null,null,null);t.default=component.exports}}]);

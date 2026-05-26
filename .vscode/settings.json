@@ -8,7 +8,7 @@
   "editor.fontLigatures": true,
   "editor.fontWeight": "bold",
   "[vue]": {
-    "editor.defaultFormatter": "Vue.volar"
+    "editor.defaultFormatter": "ms-vsliveshare.vsliveshare"
   },
   "git.postCommitCommand": "push",
   "editor.formatOnPaste": false,
