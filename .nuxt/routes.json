@@ -1,23 +1,9 @@
 [
   {
-    "name": "dashboard",
-    "path": "/dashboard",
-    "component": "/home/psserver/vgg-source/GA/dma_vg/pages/dashboard.vue",
-    "chunkName": "pages/dashboard",
-    "_name": "_07170bd4"
-  },
-  {
-    "name": "index copy",
-    "path": "/index%20copy",
-    "component": "/home/psserver/vgg-source/GA/dma_vg/pages/index copy.vue",
-    "chunkName": "pages/index copy",
-    "_name": "_9329411a"
-  },
-  {
     "name": "index",
     "path": "/",
-    "component": "/home/psserver/vgg-source/GA/dma_vg/pages/index.vue",
+    "component": "D:\\\\source\\\\dma_vg\\\\pages\\\\index.vue",
     "chunkName": "pages/index",
-    "_name": "_da0ee1dc"
+    "_name": "_8e564676"
   }
 ]

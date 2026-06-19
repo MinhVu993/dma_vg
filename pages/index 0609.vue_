@@ -22,32 +22,20 @@
                         <v-icon left>mdi-reload</v-icon>
                         {{ $t("Reload") }}
                     </v-btn>
-                    <v-btn @click="openNewRequestDialog" :title="$t('New request')" color="warning" small light nuxt>
+                    <v-btn @click="appDialog = true" :title="$t('New request')" color="warning" small light nuxt>
                         <v-icon left>mdi-plus</v-icon>
                         {{ $t("New request") }}
                     </v-btn>
-                  
+                    <v-btn class="ml-4" v-if="canSeeFloorPlan" :title="$t('Dorm Floor Plan')" color="primary" small
+                    light @click="openFloorPlan()" nuxt>
+                    <v-icon left>mdi-office-building-outline</v-icon>
+                    {{ $t("Dorm Floor Plan") }}
+                </v-btn>
             </v-toolbar>
             <v-tabs background-color="teal darken-2" color="yellow" dark v-model="statusFilter">
                 <v-tab> {{ $t("All") }} </v-tab>
-                <v-tab v-show="hasTodoItems">
-                    <v-badge
-                        :value="todoCount > 0"
-                        color="red"
-                        :content="todoCount > 9 ? '9+' : todoCount"
-                    >
-                        {{ $t("To do") }}
-                    </v-badge>
-                </v-tab>
-                <v-tab>
-                    <v-badge
-                        :value="processingCount > 0"
-                        color="orange darken-2"
-                        :content="processingCount > 9 ? '9+' : processingCount"
-                    >
-                        {{ $t("Processing") }}
-                    </v-badge>
-                </v-tab>
+                <v-tab> {{ $t("To do") }} </v-tab>
+                <v-tab> {{ $t("Processing") }} </v-tab>
                 <v-tab> {{ $t("Completed") }} </v-tab>
                 <v-tab> {{ $t("Decline/Cancel") }} </v-tab>
             </v-tabs>
@@ -190,17 +178,11 @@
 </template>
 <template v-slot:item.room_no="{ item }">
     <div class="d-flex align-center justify-center">
-        <v-tooltip bottom v-if="getRoomCount(item) > 0" color="blue-grey darken-3">
-            <template v-slot:activator="{ on, attrs }">
-                <v-chip v-bind="attrs" v-on="on" small color="blue-grey lighten-5" text-color="blue-grey darken-3" class="font-weight-bold" label>
-                    <v-icon left small color="blue-grey darken-2">mdi-home-circle-outline</v-icon>
-                    {{ getDisplayedRooms(item) }}
-                </v-chip>
-            </template>
-            <span class="text-caption">{{ getFullRoomsList(item) }}</span>
-        </v-tooltip>
-        <span v-else class="grey--text">-</span>
-    </div>
+        <v-badge :content="getRoomCount(item)" color="primary" overlap bordered offset-x="10"
+        offset-y="10" v-if="getRoomCount(item) > 0">
+        <v-icon>mdi-home</v-icon>
+    </v-badge>
+</div>
 </template>
 <template v-slot:item.qr_code="{ item }">
     <v-btn v-if="item.qr_code" icon @click="showQRCode(item)"> <v-icon
@@ -248,7 +230,6 @@
                 :key="selectedItem ? selectedItem.id : 'new-request'" appCode="dma"
                 :empno="selectedItem ? submitterInfo.empno : activeUser.empno"
                 :location="selectedItem ? submitterInfo.location : activeUser.location"
-                :status="selectedItem ? selectedItem.status : null"
                 @sendAppFlow="handleAppFlow" style="font-size: 10px;"></VfaAppFlow>
                 <v-card flat>
                     <v-card-title class="subtitle-1 py-2 teal--text">
@@ -399,7 +380,7 @@
 </v-menu>
 </v-col>
 <v-col cols="12" sm="6" :md="(!contact.location || contact.location.loc !== 'VG') ? 3 : 4">
-    <v-textarea v-model="contact.notes" :label="$t('Notes')" outlined auto-grow clearable
+    <v-textarea v-model="contact.notes" :label="$t('Notes')" outlined auto-grow
     :disabled="isViewDetail" rows="1" dense hide-details>
 </v-textarea>
 </v-col>
@@ -945,7 +926,7 @@
 </template>
 <script>
 // import VfaAppFlow from "../../../@global-component/vfa-comp";
-import VfaAppFlow from '@/components/AppFlow.vue';
+import VfaAppFlow from 'D:/source/@global-component/vfa-comp';
 import DSFilter from '@/components/DsFilter.vue'
 import dayjs from "dayjs";
 import * as XLSX from 'xlsx';
@@ -1003,7 +984,6 @@ export default {
             selectedRequestToAccept: null,
             listDeptManagerLvl1: [],
             dataAppFlow: [],
-            appFlowCache: {},
             reasonDialog: false,
             selectedReason: null,
             filters: {},
@@ -1112,129 +1092,6 @@ export default {
         }
     },
     computed: {
-        baseVisibleDormData() {
-            if (!this.dromData || !this.dromData.length) return [];
-            return this.dromData.filter(item => {
-                if (this.activeUser?.role === 'admin') return true;
-                
-                try {
-                    const submitter = JSON.parse(item.submitter);
-                    // Check if creator or same dept/hight_dept
-                    if (submitter.empno === this.activeUser?.empno || 
-                        submitter.dept === this.activeUser?.dept ||
-                        (submitter.hight_dept && submitter.hight_dept === this.activeUser?.hight_dept)) {
-                        return true;
-                    }
-                    
-                    // Check if user is an approver for this item
-                    const itemAppFlow = this.getAppFlowForItem(item);
-                    if (itemAppFlow && itemAppFlow.length) {
-                        const isApprover = itemAppFlow.some(level => 
-                            level.managers.some(m => 
-                                this.isEmpnoMatch(m.empno) || 
-                                m.email === this.activeUser?.email ||
-                                m.deputies?.some(d => 
-                                    (this.isEmpnoMatch(d.empno) || d.email === this.activeUser?.email) && 
-                                    (d.status === true || d.status === undefined)
-                                )
-                            )
-                        );
-                        if (isApprover) return true;
-                    }
-                    
-                    return false;
-                } catch (e) {
-                    return false;
-                }
-            });
-        },
-        todoCount() {
-            if (!this.baseVisibleDormData || !this.baseVisibleDormData.length) return 0;
-            const currentUserEmpno = this.activeUser?.empno;
-            const currentUserEmail = this.activeUser?.email;
-            if (!currentUserEmpno) return 0;
-
-            let count = 0;
-            this.baseVisibleDormData.forEach(item => {
-                try {
-                    const status = JSON.parse(item.status);
-                    const submitterDept = JSON.parse(item.submitter).dept;
-                    
-                    const itemAppFlow = this.getAppFlowForItem(item);
-                    if (!itemAppFlow || !itemAppFlow.length) return;
-                    
-                    const userLevels = {
-                        isLevel1: itemAppFlow[0]?.managers.some(m => {
-                            const hasDeptsAccess = Array.isArray(m.dept_code)
-                                ? m.dept_code.some(code => code === submitterDept || submitterDept.startsWith(code))
-                                : (m.dept_code?.includes(submitterDept) || false);
-                            
-                            const isManagerOrDeputy =
-                            this.isEmpnoMatch(m.empno) ||
-                            m.deputies?.some(d => this.isEmpnoMatch(d.empno) && (d.status === true || d.status === undefined));
-                            
-                            return hasDeptsAccess && isManagerOrDeputy;
-                        }),
-                        isLevel2: itemAppFlow[1]?.managers.some(m =>
-                        this.isEmpnoMatch(m.empno) ||
-                        m.deputies?.some(d => this.isEmpnoMatch(d.empno) && (d.status === true || d.status === undefined))
-                        ),
-                        isLevel3: itemAppFlow[2]?.managers.some(m =>
-                        m.email === currentUserEmail ||
-                        m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
-                        ),
-                        isLevel4: itemAppFlow[3]?.managers.some(m =>
-                        m.email === currentUserEmail ||
-                        m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
-                        )
-                    };
-                    
-                    const currentLevel = this.getCurrentApprovalLevel(status);
-                    
-                    const isTodo = (currentLevel === 1 && userLevels.isLevel1) ||
-                    (currentLevel === 2 && userLevels.isLevel2) ||
-                    (currentLevel === 3 && userLevels.isLevel3) ||
-                    (currentLevel === 4 && userLevels.isLevel4);
-
-                    if (isTodo) {
-                        count++;
-                    }
-                } catch (e) {}
-            });
-            return count;
-        },
-        processingCount() {
-            if (!this.baseVisibleDormData || !this.baseVisibleDormData.length) return 0;
-            let count = 0;
-            this.baseVisibleDormData.forEach(item => {
-                try {
-                    const status = JSON.parse(item.status);
-                    
-                    // Check for completed status
-                    const isCompleted = status[3]?.gm === "true" && status[3]?.stt === "accept";
-                    if (isCompleted) return;
-                    
-                    // Check for denied status at any level
-                    const isDenied = status.some(s => s.stt === "deny");
-                    if (isDenied) return;
-                    
-                    // Check for processing status
-                    const isProcessing = (
-                        (status[2]?.smp === "true" && status[2]?.stt === "accept") ||
-                        (status[1]?.ga === "true" && status[1]?.stt === "accept") ||
-                        (status[0].dept === "true" && status[0].stt === "accept")
-                    );
-
-                    if (isProcessing) {
-                        count++;
-                    }
-                } catch (e) {}
-            });
-            return count;
-        },
-        hasTodoItems() {
-            return this.todoCount > 0;
-        },
         isViewDetail() {
             return !!this.selectedItem;
         },
@@ -1244,54 +1101,40 @@ export default {
         },
         filteredDormData() {
             const requestId = this.$route.query.id;
-            
-            // Apply base visibility permissions
-            let baseData = this.baseVisibleDormData;
-
             if (requestId) {
-                return baseData.filter(item => item.id === requestId);
+                return this.dromData.filter(item => item.id === requestId);
             }
             
-            let filtered = this.statusFilter === 0 ? [...baseData] :
-            baseData.filter(item => {
+            let filtered = this.statusFilter === 0 ? [...this.dromData] :
+            this.dromData.filter(item => {
                 try {
                     const status = JSON.parse(item.status);
                     const currentUserEmpno = this.activeUser.empno;
-                    const currentUserGroup = this.activeUser.group;
                     
                     if (this.statusFilter === 1) {
-                        if (!currentUserEmpno) return false;
-                        
-                        const submitterDept = JSON.parse(item.submitter).dept;
-                        const currentUserEmail = this.activeUser?.email;
-                        
-                        // Use per-submitter AppFlow
-                        const itemAppFlow = this.getAppFlowForItem(item);
-                        if (!itemAppFlow || !itemAppFlow.length) return false;
+                        if (!this.dataAppFlow || !currentUserEmpno) return false;
                         
                         const userLevels = {
-                            isLevel1: itemAppFlow[0]?.managers.some(m => {
-                                const hasDeptsAccess = Array.isArray(m.dept_code)
-                                    ? m.dept_code.some(code => code === submitterDept || submitterDept.startsWith(code))
-                                    : (m.dept_code?.includes(submitterDept) || false);
+                            isLevel1: this.dataAppFlow[0]?.managers.some(m => {
+                                const hasDeptsAccess = m.dept_code?.includes(JSON.parse(item.submitter).dept);
                                 
                                 const isManagerOrDeputy =
-                                this.isEmpnoMatch(m.empno) ||
-                                m.deputies?.some(d => this.isEmpnoMatch(d.empno) && (d.status === true || d.status === undefined));
+                                m.empno === currentUserEmpno ||
+                                m.deputies?.some(d => d.empno === currentUserEmpno && d.status === true);
                                 
                                 return hasDeptsAccess && isManagerOrDeputy;
                             }),
-                            isLevel2: itemAppFlow[1]?.managers.some(m =>
-                            this.isEmpnoMatch(m.empno) ||
-                            m.deputies?.some(d => this.isEmpnoMatch(d.empno) && (d.status === true || d.status === undefined))
+                            isLevel2: this.dataAppFlow[1]?.managers.some(m =>
+                            m.empno === currentUserEmpno ||
+                            m.deputies?.some(d => d.empno === currentUserEmpno && d.status === true)
                             ),
-                            isLevel3: itemAppFlow[2]?.managers.some(m =>
-                            m.email === currentUserEmail ||
-                            m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
+                            isLevel3: this.dataAppFlow[2]?.managers.some(m =>
+                            m.empno === currentUserEmpno ||
+                            m.deputies?.some(d => d.empno === currentUserEmpno && d.status === true)
                             ),
-                            isLevel4: itemAppFlow[3]?.managers.some(m =>
-                            m.email === currentUserEmail ||
-                            m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
+                            isLevel4: this.dataAppFlow[3]?.managers.some(m =>
+                            m.empno === currentUserEmpno ||
+                            m.deputies?.some(d => d.empno === currentUserEmpno && d.status === true)
                             )
                         };
                         
@@ -1405,12 +1248,6 @@ export default {
                     }
                 });
             }
-            // Auto-switch to ALL tab when TO DO has no items
-            if (this.statusFilter === 1 && filtered.length === 0 && this.dromData.length > 0) {
-                this.$nextTick(() => {
-                    this.statusFilter = 0;
-                });
-            }
             
             return filtered;
         },
@@ -1454,10 +1291,6 @@ export default {
         },
     },
     methods: {
-        openNewRequestDialog() {
-            this.clearFields();
-            this.appDialog = true;
-        },
         openFloorPlan() {
             const url = "https://10.1.16.40:5001/oo/r/12I6FvHqDiTPSL4tpkSe1imdM718RpLA"
             window.open(url, '_blank');
@@ -1497,15 +1330,7 @@ export default {
             this.dataAppFlow = appFlow.map((item, index) => ({
                 level: "level" + (index + 1),
                 managers: item.managers.map((x) => {
-                    let deptCode = [];
-                    if (Array.isArray(x.dept_names)) {
-                        deptCode = x.dept_names;
-                    } else if (x.dept_code) {
-                        deptCode = [x.dept_code];
-                    } else if (x.division_code) {
-                        deptCode = [x.division_code];
-                    }
-                    return { email: x.email, empno: x.empno, name: x.name, dept_code: deptCode, deputies: x.deputies };
+                    return { email: x.email, empno: x.empno, name: x.name, dept_code: x.dept_code, deputies: x.deputies };
                 }),
             }));
             this.listDeptManagerLvl1 = this.dataAppFlow
@@ -1605,7 +1430,6 @@ export default {
                         empno: this.activeUser.empno,
                         name: this.activeUser.name,
                         dept: this.activeUser.dept,
-                        hight_dept: this.activeUser.hight_dept,
                         email: this.activeUser.email,
                         ext: this.activeUser.ext,
                         submit_date: dayjs().format('YYYY-MM-DD HH:mm:ss')
@@ -1741,94 +1565,11 @@ export default {
                 const res = await this.$axios.get(this.api + 'getAllData');
                 this.dromData = res.data.dormData;
                 this.updateFilterItems();  // Update filter items after getting data
-                
-                // Pre-fetch AppFlow for all unique submitters
-                await this.prefetchAppFlows();
-                
                 this.loading = false;
                 
             } catch (error) {
                 console.log(error);
             }
-        },
-        async prefetchAppFlows() {
-            const uniqueSubmitters = new Set();
-            for (const item of this.dromData) {
-                try {
-                    const submitter = JSON.parse(item.submitter);
-                    if (submitter.empno) {
-                        uniqueSubmitters.add(submitter.empno);
-                    }
-                } catch (e) { /* skip */ }
-            }
-            
-            const promises = [];
-            for (const empno of uniqueSubmitters) {
-                if (!this.appFlowCache[empno]) {
-                    promises.push(this.fetchAppFlowForSubmitter(empno));
-                }
-            }
-            await Promise.all(promises);
-        },
-        async fetchAppFlowForSubmitter(empno) {
-            try {
-                const res = await this.$axios.post('/api/vgDormTest/getAppFlow', {
-                    empno: empno,
-                    appCode: 'dma',
-                    location: this.activeUser?.location || 'vg',
-                });
-                let flowData = null;
-                if (res.data) {
-                    if (res.data.result && res.data.result.flow_data) {
-                        flowData = res.data.result.flow_data;
-                    } else if (res.data.flow_data) {
-                        flowData = res.data.flow_data;
-                    } else if (Array.isArray(res.data.result)) {
-                        flowData = res.data.result;
-                    } else if (Array.isArray(res.data)) {
-                        flowData = res.data;
-                    }
-                }
-                if (flowData) {
-                    const parsed = flowData.map((item, index) => ({
-                        level: 'level' + (index + 1),
-                        managers: item.managers.map((x) => {
-                            let deptCode = [];
-                            if (Array.isArray(x.dept_names)) {
-                                deptCode = x.dept_names;
-                            } else if (x.dept_code) {
-                                deptCode = [x.dept_code];
-                            } else if (x.division_code) {
-                                deptCode = [x.division_code];
-                            }
-                            return { email: x.email, empno: x.empno, name: x.name, dept_code: deptCode, deputies: x.deputies };
-                        }),
-                    }));
-                    this.$set(this.appFlowCache, empno, parsed);
-                }
-            } catch (e) {
-                console.error('Failed to fetch AppFlow for', empno, e);
-            }
-        },
-        getAppFlowForItem(item) {
-            try {
-                const submitter = JSON.parse(item.submitter);
-                return this.appFlowCache[submitter.empno] || this.dataAppFlow;
-            } catch (e) {
-                return this.dataAppFlow;
-            }
-        },
-        /**
-         * Check if a given empno matches the current user
-         * Compares against both empno (login) and group (group_empno from approval system)
-         */
-        isEmpnoMatch(targetEmpno) {
-            if (!targetEmpno) return false;
-            const empno = this.activeUser?.empno;
-            const group = this.activeUser?.group;
-            const upper = targetEmpno.toUpperCase();
-            return (empno && empno.toUpperCase() === upper) || 
-                   (group && group.toUpperCase() === upper);
         },
         showSubmitterInfo(item) {
             this.selectedSubmitter = JSON.parse(item.submitter);
@@ -2043,11 +1784,10 @@ export default {
                 const levelIndex = currentLevel - 1;
                 
                 // Check if user has permission to deny at this level
-                const itemAppFlow = this.getAppFlowForItem(item);
-                const hasPermission = itemAppFlow[levelIndex]?.managers.some(m =>
-                this.isEmpnoMatch(m.empno) || m.email === this.activeUser?.email ||
-                m.deputies?.some(d => (this.isEmpnoMatch(d.empno) || d.email === this.activeUser?.email) &&
-                (d.status === true || d.status === undefined))
+                const hasPermission = this.dataAppFlow[levelIndex]?.managers.some(m =>
+                m.empno === currentUserEmpno ||
+                m.deputies?.some(d => d.empno.toLowerCase() === currentUserEmpno.toLowerCase() &&
+                (d.status === true))
                 );
                 
                 if (!hasPermission) {
@@ -2074,13 +1814,12 @@ export default {
                     id: item.id,
                     status: JSON.stringify(status),
                     approval: JSON.stringify(approval),
-                    dataAppFlow: itemAppFlow.map(level => ({
+                    dataAppFlow: this.dataAppFlow.map(level => ({
                         level: level.level,
                         managers: level.managers.map(m => ({
                             empno: m.empno,
                             email: m.email,
-                            name: m.name,
-                            dept_code: m.dept_code
+                            name: m.name
                         }))
                     }))
                 };
@@ -2116,24 +1855,22 @@ export default {
                 const status = JSON.parse(item.status);
                 const currentUserEmail = this.activeUser.email;
                 
-                const itemAppFlow = this.getAppFlowForItem(item);
-                
                 const userLevels = {
-                    isLevel1: itemAppFlow[0]?.managers.some(m =>
-                    this.isEmpnoMatch(m.empno) || m.email === currentUserEmail ||
-                    m.deputies?.some(d => (this.isEmpnoMatch(d.empno) || d.email === currentUserEmail) && (d.status === true || d.status === undefined))
+                    isLevel1: this.dataAppFlow[0]?.managers.some(m =>
+                    m.email === currentUserEmail ||
+                    m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
                     ),
-                    isLevel2: itemAppFlow[1]?.managers.some(m =>
-                    this.isEmpnoMatch(m.empno) || m.email === currentUserEmail ||
-                    m.deputies?.some(d => (this.isEmpnoMatch(d.empno) || d.email === currentUserEmail) && (d.status === true || d.status === undefined))
+                    isLevel2: this.dataAppFlow[1]?.managers.some(m =>
+                    m.email === currentUserEmail ||
+                    m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
                     ),
-                    isLevel3: itemAppFlow[2]?.managers.some(m =>
-                    this.isEmpnoMatch(m.empno) || m.email === currentUserEmail ||
-                    m.deputies?.some(d => (this.isEmpnoMatch(d.empno) || d.email === currentUserEmail) && (d.status === true || d.status === undefined))
+                    isLevel3: this.dataAppFlow[2]?.managers.some(m =>
+                    m.email === currentUserEmail ||
+                    m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
                     ),
-                    isLevel4: itemAppFlow[3]?.managers.some(m =>
-                    this.isEmpnoMatch(m.empno) || m.email === currentUserEmail ||
-                    m.deputies?.some(d => (this.isEmpnoMatch(d.empno) || d.email === currentUserEmail) && (d.status === true || d.status === undefined))
+                    isLevel4: this.dataAppFlow[3]?.managers.some(m =>
+                    m.email === currentUserEmail ||
+                    m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
                     )
                 };
                 
@@ -2190,7 +1927,7 @@ export default {
                     status: JSON.stringify(status),
                     approval: JSON.stringify(approval),
                     currentUser: this.activeUser,
-                    dataAppFlow: itemAppFlow,
+                    dataAppFlow: this.dataAppFlow,
                     targetLevel: currentLevel - 1
                 };
                 
@@ -2199,7 +1936,7 @@ export default {
                     status: JSON.stringify(status),
                     approval: JSON.stringify(approval),
                     currentUser: this.activeUser,
-                    dataAppFlow: itemAppFlow,
+                    dataAppFlow: this.dataAppFlow,
                     targetLevel: currentLevel - 1
                 });
                 
@@ -2254,9 +1991,8 @@ export default {
                 }
                 const status = JSON.parse(item.status);
                 const currentUserEmail = this.activeUser?.email;
-                const currentUserEmpno = this.activeUser?.empno;
                 
-                if (!currentUserEmail && !currentUserEmpno) {
+                if (!currentUserEmail) {
                     return false;
                 }
                 
@@ -2265,25 +2001,28 @@ export default {
                     return true;
                 }
                 
-                // Use per-submitter AppFlow
-                const itemAppFlow = this.getAppFlowForItem(item);
-                if (!itemAppFlow || !itemAppFlow.length) {
+                // Check user permission based on levels
+                if (!this.dataAppFlow) {
                     return false;
                 }
                 
-                // Check if user is a manager or deputy at any level (by empno, group, OR email)
-                const isManagerOrDeputy = (m) =>
-                    this.isEmpnoMatch(m.empno) ||
-                    m.email === currentUserEmail ||
-                    m.deputies?.some(d =>
-                        (this.isEmpnoMatch(d.empno) || d.email === currentUserEmail) &&
-                        (d.status === true || d.status === undefined)
-                    );
-                
-                const level1Permission = itemAppFlow[0]?.managers.some(isManagerOrDeputy);
-                const level2Permission = itemAppFlow[1]?.managers.some(isManagerOrDeputy);
-                const level3Permission = itemAppFlow[2]?.managers.some(isManagerOrDeputy);
-                const level4Permission = itemAppFlow[3]?.managers.some(isManagerOrDeputy);
+                // Check if user is a manager or deputy at any level
+                const level1Permission = this.dataAppFlow[0]?.managers.some(m =>
+                m.email === currentUserEmail ||
+                m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
+                );
+                const level2Permission = this.dataAppFlow[1]?.managers.some(m =>
+                m.email === currentUserEmail ||
+                m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
+                );
+                const level3Permission = this.dataAppFlow[2]?.managers.some(m =>
+                m.email === currentUserEmail ||
+                m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
+                );
+                const level4Permission = this.dataAppFlow[3]?.managers.some(m =>
+                m.email === currentUserEmail ||
+                m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
+                );
                 
                 const hasPermission = level1Permission || level2Permission || level3Permission || level4Permission;
                 return hasPermission;
@@ -2303,34 +2042,29 @@ export default {
                 const currentUserEmail = this.activeUser?.email;
                 
                 if (!currentUserEmpno) return false;
-                
-                // Use per-submitter AppFlow
-                const itemAppFlow = this.getAppFlowForItem(item);
-                if (!itemAppFlow || !Array.isArray(itemAppFlow)) return false;
+                if (!this.dataAppFlow || !Array.isArray(this.dataAppFlow)) return false;
                 
                 // Update level 1 check to include department validation
-                const isLevel1 = itemAppFlow[0]?.managers?.some(m => {
-                    const hasDeptsAccess = Array.isArray(m.dept_code)
-                        ? m.dept_code.some(code => code === submitterDept || submitterDept.startsWith(code))
-                        : (m.dept_code?.includes(submitterDept) || false);
+                const isLevel1 = this.dataAppFlow[0]?.managers?.some(m => {
+                    const hasDeptsAccess = m.dept_code?.includes(submitterDept);
                     const isManagerOrDeputy =
-                    this.isEmpnoMatch(m.empno) ||
-                    m.deputies?.some(d => this.isEmpnoMatch(d.empno) && (d.status === true || d.status === undefined));
+                    m.empno === currentUserEmpno ||
+                    m.deputies?.some(d => d.empno === currentUserEmpno && d.status === true);
                     return hasDeptsAccess && isManagerOrDeputy;
                 });
                 
                 // Other levels remain the same
-                const isLevel2 = itemAppFlow[1]?.managers?.some(m =>
-                this.isEmpnoMatch(m.empno) ||
-                m.deputies?.some(d => this.isEmpnoMatch(d.empno) && (d.status === true || d.status === undefined))
+                const isLevel2 = this.dataAppFlow[1]?.managers?.some(m =>
+                m.empno === currentUserEmpno ||
+                m.deputies?.some(d => d.empno === currentUserEmpno && d.status === true)
                 );
-                const isLevel3 = itemAppFlow[2]?.managers?.some(m =>
-                this.isEmpnoMatch(m.empno) || m.email === currentUserEmail ||
-                m.deputies?.some(d => (this.isEmpnoMatch(d.empno) || d.email === currentUserEmail) && (d.status === true || d.status === undefined))
+                const isLevel3 = this.dataAppFlow[2]?.managers?.some(m =>
+                m.email === currentUserEmail ||
+                m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
                 );
-                const isLevel4 = itemAppFlow[3]?.managers?.some(m =>
-                this.isEmpnoMatch(m.empno) || m.email === currentUserEmail ||
-                m.deputies?.some(d => (this.isEmpnoMatch(d.empno) || d.email === currentUserEmail) && (d.status === true || d.status === undefined))
+                const isLevel4 = this.dataAppFlow[3]?.managers?.some(m =>
+                m.email === currentUserEmail ||
+                m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
                 );
                 
                 // Kiểm tra trạng thái hiện tại
@@ -2372,34 +2106,29 @@ export default {
                 const currentUserEmail = this.activeUser?.email;
                 
                 if (!currentUserEmpno) return false;
-                
-                // Use per-submitter AppFlow
-                const itemAppFlow = this.getAppFlowForItem(item);
-                if (!itemAppFlow || !Array.isArray(itemAppFlow)) return false;
+                if (!this.dataAppFlow || !Array.isArray(this.dataAppFlow)) return false;
                 
                 // Update level 1 check to include department validation
-                const isLevel1 = itemAppFlow[0]?.managers?.some(m => {
-                    const hasDeptsAccess = Array.isArray(m.dept_code)
-                        ? m.dept_code.some(code => code === submitterDept || submitterDept.startsWith(code))
-                        : (m.dept_code?.includes(submitterDept) || false);
+                const isLevel1 = this.dataAppFlow[0]?.managers?.some(m => {
+                    const hasDeptsAccess = m.dept_code?.includes(submitterDept);
                     const isManagerOrDeputy =
-                    this.isEmpnoMatch(m.empno) ||
-                    m.deputies?.some(d => this.isEmpnoMatch(d.empno) && (d.status === true || d.status === undefined));
+                    m.empno === currentUserEmpno ||
+                    m.deputies?.some(d => d.empno === currentUserEmpno && d.status === true);
                     return hasDeptsAccess && isManagerOrDeputy;
                 });
                 
                 // Other levels remain the same
-                const isLevel2 = itemAppFlow[1]?.managers?.some(m =>
-                this.isEmpnoMatch(m.empno) ||
-                m.deputies?.some(d => this.isEmpnoMatch(d.empno) && (d.status === true || d.status === undefined))
+                const isLevel2 = this.dataAppFlow[1]?.managers?.some(m =>
+                m.empno === currentUserEmpno ||
+                m.deputies?.some(d => d.empno === currentUserEmpno && d.status === true)
                 );
-                const isLevel3 = itemAppFlow[2]?.managers?.some(m =>
-                this.isEmpnoMatch(m.empno) || m.email === currentUserEmail ||
-                m.deputies?.some(d => (this.isEmpnoMatch(d.empno) || d.email === currentUserEmail) && (d.status === true || d.status === undefined))
+                const isLevel3 = this.dataAppFlow[2]?.managers?.some(m =>
+                m.email === currentUserEmail ||
+                m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
                 );
-                const isLevel4 = itemAppFlow[3]?.managers?.some(m =>
-                this.isEmpnoMatch(m.empno) || m.email === currentUserEmail ||
-                m.deputies?.some(d => (this.isEmpnoMatch(d.empno) || d.email === currentUserEmail) && (d.status === true || d.status === undefined))
+                const isLevel4 = this.dataAppFlow[3]?.managers?.some(m =>
+                m.email === currentUserEmail ||
+                m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
                 );
                 
                 const currentLevel = this.getCurrentApprovalLevel(status);
@@ -2715,8 +2444,7 @@ export default {
                 } else if (status[2].smp === "true" && status[3]?.gm === "false") {
                     level = "level4";
                 }
-                const itemAppFlow = this.getAppFlowForItem(item);
-                const levelData = itemAppFlow?.find(l => l.level === level);
+                const levelData = this.dataAppFlow?.find(l => l.level === level);
                 if (!levelData || !levelData.managers.length) return '';
                 
                 let managerInfo = [];
@@ -2725,7 +2453,7 @@ export default {
                     managerInfo.push(`${manager.name} (${manager.empno})`);
                     
                     if (manager.deputies && manager.deputies.length > 0) {
-                        const activeDeputies = manager.deputies.filter(d => d.status === true || d.status === undefined);
+                        const activeDeputies = manager.deputies.filter(d => d.status === true);
                         if (activeDeputies.length > 0) {
                             activeDeputies.forEach(deputy => {
                                 managerInfo.push(`${deputy.name} (${deputy.empno || 'Deputy'})`);
@@ -3053,32 +2781,6 @@ export default {
             } catch (error) {
                 console.error('Error counting rooms:', error);
                 return 0;
-            }
-        },
-        getDisplayedRooms(item) {
-            try {
-                const nameArray = JSON.parse(item.name);
-                const rooms = [...new Set(nameArray
-                .map(person => person.room_no)
-                .filter(room => room && room.trim())
-                )];
-                if (rooms.length === 0) return '-';
-                if (rooms.length <= 2) return rooms.join(', ');
-                return `${rooms.slice(0, 2).join(', ')} (+${rooms.length - 2})`;
-            } catch (error) {
-                return '-';
-            }
-        },
-        getFullRoomsList(item) {
-            try {
-                const nameArray = JSON.parse(item.name);
-                const rooms = [...new Set(nameArray
-                .map(person => person.room_no)
-                .filter(room => room && room.trim())
-                )];
-                return rooms.join(', ');
-            } catch (error) {
-                return '';
             }
         },
         async initializeApp() {
@@ -3609,7 +3311,6 @@ export default {
             "Request created successfully": "Request created successfully",
             "Failed to create request": "Failed to create request",
             "Failed to load approval information": "Failed to load approval information",
-            "Approval Information": "Approval Information",
             "Request denied successfully": "Request denied successfully",
             "Failed to deny request": "Failed to deny request",
             "Request accepted successfully": "Request accepted successfully",
@@ -3747,7 +3448,6 @@ export default {
             "Request created successfully": "Tạo yêu cầu thành công",
             "Failed to create request": "Không thể tạo yêu cầu",
             "Failed to load approval information": "Không thể tải thông tin phê duyệt",
-            "Approval Information": "Thông tin phê duyệt",
             "Request denied successfully": "Từ chối yêu cầu thành công",
             "Failed to deny request": "Không thể từ chối yêu cầu",
             "Request accepted successfully": "Chấp nhận yêu cầu thành công",
@@ -3912,7 +3612,6 @@ export default {
             "Please fill in all required fields for all contacts": "請填寫所有聯絡人的必填資訊",
             "Request created successfully": "申請建立成功",
             "Failed to create request": "無法建立申請",
-            "Approval Information": "審批資訊",
             "Room number and QR code updated successfully": "房間號碼和QR碼更新成功",
             "Failed to update room number and QR碼": "無法更新房間號碼和QR碼",
             "Failed to send email notification": "無法發送電子郵件通知",

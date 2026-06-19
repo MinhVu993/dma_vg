@@ -12,16 +12,16 @@ app()->singleton(EmailService::class, function($app) {
     return new EmailService();
 });
 
-Route::prefix('vgDorm')->group(function () {
-  Route::post('savedb', 'vgDormCtrl@savedb');
-  Route::get('getAllData', 'vgDormCtrl@getAllData');
-  Route::post('acceptRequest', 'vgDormCtrl@acceptRequest');
-  Route::post('denyRequest', 'vgDormCtrl@denyRequest');
-  Route::get('getDormLoc', 'vgDormCtrl@getDormLoc');
-  Route::get('getDormNation', 'vgDormCtrl@getDormNation');
-  Route::post('updateRoom', 'vgDormCtrl@updateRoom');
-  Route::post('updateQRCode', 'vgDormCtrl@updateQRCode');
-  Route::get('getQRCode/{appname?}/{id?}', 'vgDormCtrl@getQRCode');
-  // Add new route for confirmAccept
-  Route::post('confirmAccept', 'vgDormCtrl@confirmAccept');
+Route::prefix('vgDormTest')->group(function () {
+  Route::post('savedb', 'vgDormTestCtrl@savedb');
+  Route::get('getAllData', 'vgDormTestCtrl@getAllData');
+  Route::post('acceptRequest', 'vgDormTestCtrl@acceptRequest');
+  Route::post('denyRequest', 'vgDormTestCtrl@denyRequest');
+  Route::get('getDormLoc', 'vgDormTestCtrl@getDormLoc');
+  Route::get('getDormNation', 'vgDormTestCtrl@getDormNation');
+  Route::post('updateRoom', 'vgDormTestCtrl@updateRoom');
+  Route::post('updateQRCode', 'vgDormTestCtrl@updateQRCode');
+  Route::get('getQRCode/{appname?}/{id?}', 'vgDormTestCtrl@getQRCode');
+  Route::post('confirmAccept', 'vgDormTestCtrl@confirmAccept');
+  Route::post('getAppFlow', 'vgDormTestCtrl@getAppFlow');
 });

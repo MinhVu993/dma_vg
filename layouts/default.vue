@@ -71,8 +71,8 @@
     </div>
 </template>
 <script>
-import AuthComp from "../../../@global-component/auth-comp";
-// import AuthComp from 'D:/source/@global-component/auth-comp.vue';
+// import AuthComp from "../../../@global-component/auth-comp";
+import AuthComp from 'D:/source/@global-component/auth-comp.vue';
 export default {
     components: {
         AuthComp,
@@ -116,9 +116,25 @@ export default {
             this.$root.$emit('company-changed', company);
         },
         async setUser(user) {
-            const appRoles = JSON.parse(user.app_roles);
-            const roleItem = appRoles.find(app => app.app === "dma");
-            const role = roleItem ? roleItem.role : null;
+            if (!user) return;
+
+            // If it is already a mapped session object (emitted from AuthComp's existingData check)
+            if (user.role && !user.app_roles) {
+                this.loaded = true;
+                await this.checkAppAccess(user.empno);
+                return;
+            }
+
+            let role = null;
+            if (user.app_roles) {
+                try {
+                    const appRoles = typeof user.app_roles === 'string' ? JSON.parse(user.app_roles) : user.app_roles;
+                    const roleItem = Array.isArray(appRoles) ? appRoles.find(app => app.app === "dma") : null;
+                    role = roleItem ? roleItem.role : null;
+                } catch (e) {
+                    console.error("Error parsing app_roles:", e);
+                }
+            }
 
             this.$session.set("dma", {
                 id: user.id,
@@ -131,8 +147,10 @@ export default {
                 email: user.email,
                 role: role,
                 ext: user.extno,
+                group: user.group_empno
             });
             this.loaded = true;
+            console.log(this.$session.get("dma"));
             await this.checkAppAccess(user.empno);
         },
 
