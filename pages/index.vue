@@ -958,9 +958,9 @@ export default {
             id: '',
             today: dayjs().format('YYYY-MM-DD'),
             loading: true,
-            api: '/api/vgDormTest/',
+            api: '/api/vgDorm/',
             msgApi: "/api/msg-center/sendOutMsg",
-            storage_api: "/api/vgDormTest/getQRCode/",
+            storage_api: "/api/vgDorm/getQRCode/",
             headers: [
             { text: this.$t('Action'), value: "action",  align: 'center' },
             { text: this.$t('Details'), value: "details",  align: 'center' },
@@ -1772,7 +1772,7 @@ export default {
         },
         async fetchAppFlowForSubmitter(empno) {
             try {
-                const res = await this.$axios.post('/api/vgDormTest/getAppFlow', {
+                const res = await this.$axios.post('/api/vgDorm/getAppFlow', {
                     empno: empno,
                     appCode: 'dma',
                     location: this.activeUser?.location || 'vg',

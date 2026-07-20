@@ -18,7 +18,7 @@ export default {
   },
   ssr: false,
   server: {
-    host: process.env.HOST || "0.0.0.0",
+    host: process.env.HOST || "10.1.16.89",
     port: 3041,
   },
   // Target: https://go.nuxtjs.dev/config-target
