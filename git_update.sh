@@ -1,22 +1,26 @@
 #!/bin/bash
 
-read -p "Nhập nội dung commit (để trống sẽ mặc định là 'Update code'): " msg
+read -p "Enter commit message (leave blank for 'Update code'): " msg
 
 if [ -z "$msg" ]; then
   msg="Update code"
 fi
 
 echo ""
-echo "Đang thêm các thay đổi..."
+echo "Adding changes..."
 git add .
 
 echo ""
-echo "Đang commit với nội dung: '$msg'"
+echo "Committing: '$msg'"
 git commit -m "$msg"
 
 echo ""
-echo "Đang push lên remote..."
+echo "Pulling latest changes..."
+git pull --no-edit
+
+echo ""
+echo "Pushing to remote..."
 git push
 
 echo ""
-echo "Đã hoàn tất việc update lên git!"
+echo "Done!"

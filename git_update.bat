@@ -11,6 +11,10 @@ echo Committing: %msg%
 git commit -m "%msg%"
 
 echo.
+echo Pulling latest changes...
+git pull --no-edit
+
+echo.
 echo Pushing to remote...
 git push
 
