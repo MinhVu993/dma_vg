@@ -134,7 +134,7 @@ export default {
         const managerNameList = Object.values(
           primaryManagers.reduce((res1, cur1) => {
             if (!res1[cur1.empno]) {
-              res1[cur1.empno] = cur1.name;
+              res1[cur1.empno] = cur1.full_name;
             }
             return res1;
           }, {})
@@ -156,9 +156,9 @@ export default {
               cur1.status !== false &&
               cur1.status !== undefined
             ) {
-              res1[cur1.empno] = cur1.name;
+              res1[cur1.empno] = cur1.full_name;
             } else if (cur1.empno) {
-              t[cur1.empno] = cur1.name;
+              t[cur1.empno] = cur1.full_name;
             }
             return res1;
           }, {})
@@ -188,7 +188,7 @@ export default {
         location: this.location,
       };
       await this.$axios
-      .post("/api/vgDormTest/getAppFlow", params)
+      .post("/api/vgDorm/getAppFlow", params)
       .then((res) => {
         if (res.data) {
           if (res.data.result && res.data.result.flow_data) {
@@ -229,7 +229,6 @@ export default {
       const statusList = this.stepStatusList;
       if (!statusList || statusList.length === 0) return false;
       
-      // If the request is fully approved (final step in status list is approved)
       const lastStatus = statusList[statusList.length - 1];
       const isFullyApproved = lastStatus && (lastStatus.stt === "accept" || lastStatus.gm === "true");
       if (isFullyApproved) return true;
