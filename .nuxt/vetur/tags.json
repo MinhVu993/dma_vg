@@ -2,11 +2,11 @@
   "AppFlow": {
     "description": "Auto imported from components/AppFlow.vue"
   },
-  "Auth": {
-    "description": "Auto imported from components/auth.vue"
-  },
   "DsFilter": {
     "description": "Auto imported from components/DsFilter.vue"
+  },
+  "Auth": {
+    "description": "Auto imported from components/auth.vue"
   },
   "Request": {
     "description": "Auto imported from components/request.vue"

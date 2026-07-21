@@ -1,4 +1,5 @@
 @echo off
+<<<<<<< HEAD
 set /p msg="Enter commit message (leave blank for 'Update code'): "
 if "%msg%"=="" set msg=Update code
 
@@ -20,4 +21,24 @@ git push
 
 echo.
 echo Done!
+=======
+chcp 65001 > nul
+set /p msg="Nhập nội dung commit (để trống sẽ mặc định là 'Update code'): "
+if "%msg%"=="" set msg="Update code"
+
+echo.
+echo Đang thêm các thay đổi...
+git add .
+
+echo.
+echo Đang commit với nội dung: "%msg%"
+git commit -m "%msg%"
+
+echo.
+echo Đang push lên remote...
+git push
+
+echo.
+echo Đã hoàn tất việc update lên git!
+>>>>>>> 9ddc833365ec25979920fb0507156359185cda4c
 pause

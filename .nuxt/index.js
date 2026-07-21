@@ -5,20 +5,20 @@ import ClientOnly from 'vue-client-only'
 import NoSsr from 'vue-no-ssr'
 import { createRouter } from './router.js'
 import NuxtChild from './components/nuxt-child.js'
-import NuxtError from '..\\layouts\\error.vue'
+import NuxtError from '../layouts/error.vue'
 import Nuxt from './components/nuxt.js'
 import App from './App.js'
 import { setContext, getLocation, getRouteData, normalizeError } from './utils'
 
 /* Plugins */
 
-import nuxt_plugin_plugin_6dd531dc from 'nuxt_plugin_plugin_6dd531dc' // Source: .\\components\\plugin.js (mode: 'all')
-import nuxt_plugin_plugin_8ef190d0 from 'nuxt_plugin_plugin_8ef190d0' // Source: .\\vuetify\\plugin.js (mode: 'all')
-import nuxt_plugin_pluginutils_3cb20762 from 'nuxt_plugin_pluginutils_3cb20762' // Source: .\\nuxt-i18n\\plugin.utils.js (mode: 'all')
-import nuxt_plugin_pluginrouting_6c4c9c4c from 'nuxt_plugin_pluginrouting_6c4c9c4c' // Source: .\\nuxt-i18n\\plugin.routing.js (mode: 'all')
-import nuxt_plugin_pluginmain_db83d056 from 'nuxt_plugin_pluginmain_db83d056' // Source: .\\nuxt-i18n\\plugin.main.js (mode: 'all')
-import nuxt_plugin_axios_bc78e002 from 'nuxt_plugin_axios_bc78e002' // Source: .\\axios.js (mode: 'all')
-import nuxt_plugin_plugins_6b14a92c from 'nuxt_plugin_plugins_6b14a92c' // Source: ..\\plugins\\plugins (mode: 'client')
+import nuxt_plugin_plugin_784a1b36 from 'nuxt_plugin_plugin_784a1b36' // Source: ./components/plugin.js (mode: 'all')
+import nuxt_plugin_plugin_34bef3a9 from 'nuxt_plugin_plugin_34bef3a9' // Source: ./vuetify/plugin.js (mode: 'all')
+import nuxt_plugin_pluginutils_37eed6a0 from 'nuxt_plugin_pluginutils_37eed6a0' // Source: ./nuxt-i18n/plugin.utils.js (mode: 'all')
+import nuxt_plugin_pluginrouting_a4d7882a from 'nuxt_plugin_pluginrouting_a4d7882a' // Source: ./nuxt-i18n/plugin.routing.js (mode: 'all')
+import nuxt_plugin_pluginmain_414da138 from 'nuxt_plugin_pluginmain_414da138' // Source: ./nuxt-i18n/plugin.main.js (mode: 'all')
+import nuxt_plugin_axios_1f31ccfb from 'nuxt_plugin_axios_1f31ccfb' // Source: ./axios.js (mode: 'all')
+import nuxt_plugin_plugins_6b14a92c from 'nuxt_plugin_plugins_6b14a92c' // Source: ../plugins/plugins (mode: 'client')
 
 // Component: <ClientOnly>
 Vue.component(ClientOnly.name, ClientOnly)
@@ -187,28 +187,28 @@ async function createApp(ssrContext, config = {}) {
   }
   // Plugin execution
 
-  if (typeof nuxt_plugin_plugin_6dd531dc === 'function') {
-    await nuxt_plugin_plugin_6dd531dc(app.context, inject)
+  if (typeof nuxt_plugin_plugin_784a1b36 === 'function') {
+    await nuxt_plugin_plugin_784a1b36(app.context, inject)
   }
 
-  if (typeof nuxt_plugin_plugin_8ef190d0 === 'function') {
-    await nuxt_plugin_plugin_8ef190d0(app.context, inject)
+  if (typeof nuxt_plugin_plugin_34bef3a9 === 'function') {
+    await nuxt_plugin_plugin_34bef3a9(app.context, inject)
   }
 
-  if (typeof nuxt_plugin_pluginutils_3cb20762 === 'function') {
-    await nuxt_plugin_pluginutils_3cb20762(app.context, inject)
+  if (typeof nuxt_plugin_pluginutils_37eed6a0 === 'function') {
+    await nuxt_plugin_pluginutils_37eed6a0(app.context, inject)
   }
 
-  if (typeof nuxt_plugin_pluginrouting_6c4c9c4c === 'function') {
-    await nuxt_plugin_pluginrouting_6c4c9c4c(app.context, inject)
+  if (typeof nuxt_plugin_pluginrouting_a4d7882a === 'function') {
+    await nuxt_plugin_pluginrouting_a4d7882a(app.context, inject)
   }
 
-  if (typeof nuxt_plugin_pluginmain_db83d056 === 'function') {
-    await nuxt_plugin_pluginmain_db83d056(app.context, inject)
+  if (typeof nuxt_plugin_pluginmain_414da138 === 'function') {
+    await nuxt_plugin_pluginmain_414da138(app.context, inject)
   }
 
-  if (typeof nuxt_plugin_axios_bc78e002 === 'function') {
-    await nuxt_plugin_axios_bc78e002(app.context, inject)
+  if (typeof nuxt_plugin_axios_1f31ccfb === 'function') {
+    await nuxt_plugin_axios_1f31ccfb(app.context, inject)
   }
 
   if (process.client && typeof nuxt_plugin_plugins_6b14a92c === 'function') {
