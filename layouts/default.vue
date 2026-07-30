@@ -40,7 +40,7 @@
                 <v-app-bar-nav-icon @click.stop="drawer = !drawer" />
                 <v-toolbar-title v-text="$t('appname')" />
                 <v-chip class="ma-2" color="white" label small outlined @click:close="chip4 = false">
-                    V.2.0
+                    V.2.1
                 </v-chip>
                 <v-spacer />
                 <v-btn @click="locale('vi')" text>VI</v-btn>
@@ -65,8 +65,8 @@
 </template>
 
 <script>
-// import AuthComp from "../../../@global-component/auth-comp";
-import AuthComp from 'D:/source/@global-component/auth-comp.vue';
+import AuthComp from "../../../@global-component/auth-comp";
+// import AuthComp from 'D:/source/@global-component/auth-comp.vue';
 export default {
     components: {
         AuthComp,
