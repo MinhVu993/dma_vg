@@ -1170,22 +1170,22 @@ export default {
                                 : (m.dept_code?.includes(submitterDept) || false);
                             
                             const isManagerOrDeputy =
-                            this.isEmpnoMatch(m.empno) ||
-                            m.deputies?.some(d => this.isEmpnoMatch(d.empno) && (d.status === true || d.status === undefined));
+                            this.isEmpnoMatch(m.empno) || m.email === currentUserEmail ||
+                            m.deputies?.some(d => (this.isEmpnoMatch(d.empno) || d.email === currentUserEmail) && (d.status === true || d.status === undefined));
                             
                             return hasDeptsAccess && isManagerOrDeputy;
                         }),
                         isLevel2: itemAppFlow[1]?.managers.some(m =>
-                        this.isEmpnoMatch(m.empno) ||
-                        m.deputies?.some(d => this.isEmpnoMatch(d.empno) && (d.status === true || d.status === undefined))
+                        this.isEmpnoMatch(m.empno) || m.email === currentUserEmail ||
+                        m.deputies?.some(d => (this.isEmpnoMatch(d.empno) || d.email === currentUserEmail) && (d.status === true || d.status === undefined))
                         ),
                         isLevel3: itemAppFlow[2]?.managers.some(m =>
-                        m.email === currentUserEmail ||
-                        m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
+                        this.isEmpnoMatch(m.empno) || m.email === currentUserEmail ||
+                        m.deputies?.some(d => (this.isEmpnoMatch(d.empno) || d.email === currentUserEmail) && (d.status === true || d.status === undefined))
                         ),
                         isLevel4: itemAppFlow[3]?.managers.some(m =>
-                        m.email === currentUserEmail ||
-                        m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
+                        this.isEmpnoMatch(m.empno) || m.email === currentUserEmail ||
+                        m.deputies?.some(d => (this.isEmpnoMatch(d.empno) || d.email === currentUserEmail) && (d.status === true || d.status === undefined))
                         )
                     };
                     
@@ -1276,22 +1276,22 @@ export default {
                                     : (m.dept_code?.includes(submitterDept) || false);
                                 
                                 const isManagerOrDeputy =
-                                this.isEmpnoMatch(m.empno) ||
-                                m.deputies?.some(d => this.isEmpnoMatch(d.empno) && (d.status === true || d.status === undefined));
+                                this.isEmpnoMatch(m.empno) || m.email === currentUserEmail ||
+                                m.deputies?.some(d => (this.isEmpnoMatch(d.empno) || d.email === currentUserEmail) && (d.status === true || d.status === undefined));
                                 
                                 return hasDeptsAccess && isManagerOrDeputy;
                             }),
                             isLevel2: itemAppFlow[1]?.managers.some(m =>
-                            this.isEmpnoMatch(m.empno) ||
-                            m.deputies?.some(d => this.isEmpnoMatch(d.empno) && (d.status === true || d.status === undefined))
+                            this.isEmpnoMatch(m.empno) || m.email === currentUserEmail ||
+                            m.deputies?.some(d => (this.isEmpnoMatch(d.empno) || d.email === currentUserEmail) && (d.status === true || d.status === undefined))
                             ),
                             isLevel3: itemAppFlow[2]?.managers.some(m =>
-                            m.email === currentUserEmail ||
-                            m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
+                            this.isEmpnoMatch(m.empno) || m.email === currentUserEmail ||
+                            m.deputies?.some(d => (this.isEmpnoMatch(d.empno) || d.email === currentUserEmail) && (d.status === true || d.status === undefined))
                             ),
                             isLevel4: itemAppFlow[3]?.managers.some(m =>
-                            m.email === currentUserEmail ||
-                            m.deputies?.some(d => d.email === currentUserEmail && (d.status === true || d.status === undefined))
+                            this.isEmpnoMatch(m.empno) || m.email === currentUserEmail ||
+                            m.deputies?.some(d => (this.isEmpnoMatch(d.empno) || d.email === currentUserEmail) && (d.status === true || d.status === undefined))
                             )
                         };
                         
@@ -1825,7 +1825,7 @@ export default {
         isEmpnoMatch(targetEmpno) {
             if (!targetEmpno) return false;
             const empno = this.activeUser?.empno;
-            const group = this.activeUser?.group;
+            const group = this.activeUser?.group || this.activeUser?.group_empno;
             const upper = targetEmpno.toUpperCase();
             return (empno && empno.toUpperCase() === upper) || 
                    (group && group.toUpperCase() === upper);

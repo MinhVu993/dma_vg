@@ -1,6 +1,6 @@
 <i18n>
     {
-        "en": {
+         "en": {
             "appname": "Dormitory Management Application",
             "accessDenied": "You do not have permission to access this application.",
             "User manual": "User manual",
@@ -24,25 +24,24 @@
     <div>
         <v-app v-if="loaded" dark>
             <v-navigation-drawer temporary color="teal" dark v-model="drawer" :mini-variant="miniVariant"
-                :clipped="clipped" fixed app>
-                <v-list>
-                    <v-list-item v-for="(item, i) in items" :key="i"  :href="item.href" router exact>
-                        <v-list-item-action>
-                            <v-icon>{{ item.icon }}</v-icon>
-                        </v-list-item-action>
-                        <v-list-item-content>
-                            <v-list-item-title v-text="$t(item.title)" />
-                        </v-list-item-content>
-                    </v-list-item>
-                </v-list>
-            </v-navigation-drawer>
-            <v-app-bar class="noPrint" dense color="teal" dark :clipped-left="clipped" fixed app>
+            :clipped="clipped" fixed app>
+            <v-list>
+                <v-list-item v-for="(item, i) in items" :key="i" :to="item.to" :href="item.href" router exact>
+                    <v-list-item-action>
+                        <v-icon>{{ item.icon }}</v-icon>
+                    </v-list-item-action>
+                    <v-list-item-content>
+                        <v-list-item-title v-text="$t(item.title)" />
+                    </v-list-item-content>
+                </v-list-item>
+            </v-list>
+        </v-navigation-drawer>
+        <v-app-bar class="noPrint" dense color="teal" dark :clipped-left="clipped" fixed app>
                 <v-app-bar-nav-icon @click.stop="drawer = !drawer" />
                 <v-toolbar-title v-text="$t('appname')" />
                 <v-chip class="ma-2" color="white" label small outlined @click:close="chip4 = false">
                     V.2.0
                 </v-chip>
-
                 <v-spacer />
                 <v-btn @click="locale('vi')" text>VI</v-btn>
                 <v-btn @click="locale('en')" text>EN</v-btn>
@@ -60,19 +59,14 @@
                     <nuxt />
                 </v-container>
             </v-main>
-            <!-- <v-footer class="noPrint" :absolute="!fixed" app>
-                <small>&copy; {{ new Date().getFullYear() }} Developed by VG - Project
-                    team</small>
-                <v-spacer></v-spacer>
-
-            </v-footer> -->
         </v-app>
         <AuthComp ref="authComp" app="dma" apiUrl="/api" @setUser="setUser" />
-    </div>
+</div>
 </template>
+
 <script>
- import AuthComp from "../../../@global-component/auth-comp";
-// import AuthComp from 'D:/source/@global-component/auth-comp.vue';
+// import AuthComp from "../../../@global-component/auth-comp";
+import AuthComp from 'D:/source/@global-component/auth-comp.vue';
 export default {
     components: {
         AuthComp,
@@ -87,17 +81,22 @@ export default {
             miniVariant: false,
             right: true,
             rightDrawer: false,
-            title: this.$t("appname"),
+            title: this.$t("appName"),
             activeUser: {},
             selectedCompany: null,
             userCompanies: [],
             companies: [
-                { code: 'vg', label: 'VG' },
-                { code: 'aw', label: 'AW' }
+            { code: 'vg', label: 'VG' },
+            { code: 'aw', label: 'AW' }
             ],
             isCompaniesLoaded: false,
-            items: [
-                {
+        };
+    },
+    computed: {
+        items() {
+            const user = this.$session.get("dma");
+            const baseItems = [
+            {
                     icon: "mdi-apps",
                     title: "User manual",
                     href: "/shared/user-manual/dma/dma.pdf"
@@ -107,8 +106,9 @@ export default {
                     title: "Go home",
                     href: "/"
                 }
-            ],
-        };
+            ];
+            return baseItems;
+        }
     },
     methods: {
         selectCompany(company) {
@@ -116,44 +116,69 @@ export default {
             this.$root.$emit('company-changed', company);
         },
         async setUser(user) {
-            if (!user) return;
-
-            // If it is already a mapped session object (emitted from AuthComp's existingData check)
-            if (user.role && !user.app_roles) {
-                this.loaded = true;
-                await this.checkAppAccess(user.empno);
-                return;
-            }
-
-            let role = null;
-            if (user.app_roles) {
-                try {
-                    const appRoles = typeof user.app_roles === 'string' ? JSON.parse(user.app_roles) : user.app_roles;
-                    const roleItem = Array.isArray(appRoles) ? appRoles.find(app => app.app === "dma") : null;
-                    role = roleItem ? roleItem.role : null;
-                } catch (e) {
-                    console.error("Error parsing app_roles:", e);
+            let appRoles = [];
+            try {
+                if (user && user.app_roles && user.app_roles !== "undefined") {
+                    appRoles = JSON.parse(user.app_roles);
                 }
+            } catch (e) {
+                console.error("Error parsing app_roles", e);
+            }
+            
+            const roleItem = appRoles.find(app => app.app === "dma");
+            const role = roleItem ? roleItem.role : null;
+            // console.log(user);
+            let queryParams = { location: 'vg' };
+            if (user.group_empno) {
+                queryParams.group_empno = user.group_empno;
+            } else if (user.syno_username || user.syno_user) {
+                queryParams.ad = user.syno_username || user.syno_user;
+            } else if (user.empno) {
+                queryParams.empno = user.empno;
             }
 
-            this.$session.set("dma", {
+            let mprSession = {
                 id: user.id,
                 empno: user.empno,
-                name: user.name,
-                username: user.username,
-                dept: user.dept,
-                hight_dept: user.high_dept,
-                location: user.location,
                 email: user.email,
                 role: role,
-                ext: user.extno,
-                group: user.group_empno
-            });
-            this.loaded = true;
-            console.log(this.$session.get("dma"));
-            await this.checkAppAccess(user.empno);
-        },
+                group_empno: user.group_empno,
+                syno_user: user.syno_username || user.syno_user,
+                username: user.username,
+                dept: user.dept || "",
+                hight_dept: user.high_dept || user.hight_dept || "",
+                unit_name: user.name || "",
+                name: user.name || "",
+                location: "vg",
+                ext: user.extno
+            };
 
+            if (queryParams.group_empno || queryParams.ad) {
+                try {
+                    const res = await this.$axios.get("http://gmo021.cansportsvg.com:10003/api/ifm-tracking/managers/query", {
+                        params: queryParams
+                    });
+                    if (res.data && res.data.ok && res.data.manager) {
+                        const manager = res.data.manager;
+                        mprSession.dept = manager.user_dept_names;
+                        mprSession.hight_dept = manager.user_division_names;
+                        mprSession.unit_name = manager.full_name;
+                        mprSession.name = manager.full_name;
+                        mprSession.group_empno = manager.group_empno;
+                        mprSession.empno = manager.empno;
+                        mprSession.syno_user = manager.syno_username;
+                        mprSession.email = manager.email;
+                    }
+                } catch (err) {
+                    console.error("Error fetching IFM Manager API:", err);
+                }
+            }
+            this.$session.set("dma", mprSession);
+            this.$root.$emit("user-session-updated");
+            await this.checkAppAccess(mprSession.empno);
+            this.loaded = true;
+        },
+        
         locale(tg) {
             this.$i18n.setLocale(tg);
             $nuxt.$emit("change-locale", tg);
@@ -161,15 +186,19 @@ export default {
         },
         async checkAppAccess(empno) {
             const currentAppId = 40;
-
+            
             try {
                 const res = await this.$axios.post(this.apiGlobalUser + "checkAppAccess", { empno, app_id: currentAppId });
                 if (res.status === 200 && res.data.status) {
                     if (res.data.data.length === 0) {
                         alert(`${this.$i18n.t('accessDenied', 'en')}\n ${this.$i18n.t('accessDenied', 'cn')}\n ${this.$i18n.t('accessDenied', 'vi')}`);
-                        window.location.href = "/";
+                        if (!this.$config.isDev) {
+                            window.location.href = "/";
+                        }
                     }
+                    
                     this.userCompanies = res.data.data.map(item => item.company.code);
+                    
                     if (!this.selectedCompany && this.userCompanies.length > 0) {
                         this.selectCompany(this.userCompanies[0]);
                     }
@@ -192,9 +221,7 @@ export default {
             this.isCompaniesLoaded = true;
         }
     },
-    computed: {},
     mounted() {
-
         if (this.$session.has("dma")) {
             this.activeUser = this.$session.get("dma");
             if (this.activeUser) {

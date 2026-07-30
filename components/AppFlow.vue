@@ -11,11 +11,9 @@
             complete
             :class="['app-flow-step', isStepApproved(index) ? 'step-approved' : 'step-pending', isStepActive(index) ? 'step-active' : '']"
             >
-            <v-tooltip bottom>
-              <template #activator="{ on, attrs }">
-                <div v-bind="attrs" v-on="on" class="d-flex flex-column align-start justify-center text-body-2" style="color: #4a4a4a; line-height: 1.3; font-weight: 400;">
+                <div class="d-flex flex-column align-start justify-center text-body-2" style="color: #4a4a4a; line-height: 1.3; font-weight: 400;">
                   <div class="mb-0.5" style="font-size: 11px; color: #8c8c8c; font-weight: 400;">
-                    {{ ['mpr', 'mpr_flow2'].includes(appCode) ? customName(flow) : (flow.lvl_name ? flow.lvl_name[$i18n.locale] || flow.lvl_name.en : '') }}
+                    {{ ['dma'].includes(appCode) ? customName(flow) : (flow.lvl_name ? flow.lvl_name[$i18n.locale] || flow.lvl_name.en : '') }}
                   </div>
                   <div style="font-size: 13px; color: #333333; font-weight: 500;">
                     {{ flow.manager_name_list_str }}
@@ -24,12 +22,6 @@
                     {{ flow.deputy_name_list_str }}
                   </div>
                 </div>
-              </template>
-              <div v-if="flow.not_deputy_name_list_str">
-                {{ flow.not_deputy_name_list_str }}
-              </div>
-              <div v-else>{{ $t("no_disabled_deputy") }}</div>
-            </v-tooltip>
           </v-stepper-step>
           <v-divider
           :key="index + 'divider'"

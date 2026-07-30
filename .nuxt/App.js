@@ -2,17 +2,20 @@ import Vue from 'vue'
 import { decode, parsePath, withoutBase, withoutTrailingSlash, normalizeURL } from 'ufo'
 
 import { getMatchedComponentsInstances, getChildrenComponentInstancesUsingFetch, promisify, globalHandleError, urlJoin, sanitizeComponent } from './utils'
-import NuxtError from '../layouts/error.vue'
+import NuxtError from '..\\layouts\\error.vue'
 import NuxtLoading from './components/nuxt-loading.vue'
+import NuxtBuildIndicator from './components/nuxt-build-indicator'
 
-import '../static/webfont.css'
+import '..\\static\\webfont.css'
 
-import '../node_modules/@mdi/font/css/materialdesignicons.css'
+import '..\\node_modules\\@mdi\\font\\css\\materialdesignicons.css'
 
-import _6be9d4d4 from '../layouts/blank2.vue'
-import _6be9d4d5 from '../layouts/blank3.vue'
-import _6f6c098b from '../layouts/default.vue'
-import _77e03077 from '../layouts/print.vue'
+import '..\\node_modules\\vuetify\\dist\\vuetify.css'
+
+import _6be9d4d4 from '..\\layouts\\blank2.vue'
+import _6be9d4d5 from '..\\layouts\\blank3.vue'
+import _6f6c098b from '..\\layouts\\default.vue'
+import _77e03077 from '..\\layouts\\print.vue'
 
 const layouts = { "_blank2": sanitizeComponent(_6be9d4d4),"_blank3": sanitizeComponent(_6be9d4d5),"_default": sanitizeComponent(_6f6c098b),"_print": sanitizeComponent(_77e03077) }
 
@@ -49,7 +52,7 @@ export default {
       }
     }, [
       loadingEl,
-
+      h(NuxtBuildIndicator),
       transitionEl
     ])
   },
@@ -195,6 +198,10 @@ export default {
     },
 
     setLayout (layout) {
+      if(layout && typeof layout !== 'string') {
+        throw new Error('[nuxt] Avoid using non-string value as layout property.')
+      }
+
       if (!layout || !layouts['_' + layout]) {
         layout = 'default'
       }

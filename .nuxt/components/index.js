@@ -1,7 +1,6 @@
-export const AppFlow = () => import('../../components/AppFlow.vue' /* webpackChunkName: "components/app-flow" */).then(c => wrapFunctional(c.default || c))
-export const DsFilter = () => import('../../components/DsFilter.vue' /* webpackChunkName: "components/ds-filter" */).then(c => wrapFunctional(c.default || c))
-export const Auth = () => import('../../components/auth.vue' /* webpackChunkName: "components/auth" */).then(c => wrapFunctional(c.default || c))
-export const Request = () => import('../../components/request.vue' /* webpackChunkName: "components/request" */).then(c => wrapFunctional(c.default || c))
+export { default as AppFlow } from '../..\\components\\AppFlow.vue'
+export { default as Auth } from '../..\\components\\auth.vue'
+export { default as DsFilter } from '../..\\components\\DsFilter.vue'
 
 // nuxt/nuxt.js#8607
 function wrapFunctional(options) {

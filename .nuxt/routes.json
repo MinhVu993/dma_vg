@@ -2,8 +2,7 @@
   {
     "name": "index",
     "path": "/",
-    "component": "/home/psserver/vgg-source/GA/dma_vg_ifm/pages/index.vue",
-    "chunkName": "pages/index",
-    "_name": "_7db33b7a"
+    "component": "D:\\\\source\\\\dma_vg_ifm\\\\pages\\\\index.vue",
+    "chunkName": "pages/index"
   }
 ]
