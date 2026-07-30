@@ -18,7 +18,7 @@ git push origin
 
 echo.
 echo Đang push lên remote 2 (dma)...
-git push dma
+git push dma -f
 
 echo.
 echo Đã hoàn tất việc update lên git!
