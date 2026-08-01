@@ -1506,6 +1506,7 @@ export default {
                         deptCode = [x.division_code];
                     }
                     return { email: x.email, empno: x.empno, name: x.name, dept_code: deptCode, deputies: x.deputies };
+                    
                 }),
             }));
             this.listDeptManagerLvl1 = this.dataAppFlow
@@ -1965,8 +1966,6 @@ export default {
                 } else if (status[0].dept === "false" && status[0].stt === "waiting dept") {
                     return 'mdi-clock-outline';
                 }
-                
-                
                 return 'mdi-help-circle';
             } catch (error) {
                 console.error('Error parsing status:', error);
@@ -2039,10 +2038,7 @@ export default {
                     throw new Error('No pending approval found or request is already completed');
                 }
                 
-                // Adjust level to 0-based index (0,1,2,3)
                 const levelIndex = currentLevel - 1;
-                
-                // Check if user has permission to deny at this level
                 const itemAppFlow = this.getAppFlowForItem(item);
                 const hasPermission = itemAppFlow[levelIndex]?.managers.some(m =>
                 this.isEmpnoMatch(m.empno) || m.email === this.activeUser?.email ||
