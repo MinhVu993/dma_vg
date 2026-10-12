@@ -1861,24 +1861,24 @@ export default {
                 
                 this.contacts = nameArray.map(person => ({
                     fullName: person.name || '',
-                    location: person.location || '',
-                    nationality: person.nation || '',
-                    gender: person.gender || 'M',
-                    startDate: person.start_date || '',
-                    endDate: person.end_date || '',
-                    notes: person.note || '',
+                    location: person.location,
+                    nationality: person.nation,
+                    gender: person.gender,
+                    startDate: person.start_date,
+                    endDate: person.end_date,
+                    notes: person.note,
                     checkStartDate: false,
                     checkEndDate: false,
-                    dateBirth: person.dateBirth || '',
-                    citizenId: person.citizen_id || '',
-                    passportNumber: person.passport_number || '',
-                    docNumber: person.doc_number || '',
-                    docType: person.doc_type || null,
-                    resReason: person.res_reason || null,
-                    resType: person.res_type || null,
-                    province: person.province_id || null,
-                    ward: person.ward_id || null,
-                    detailedAddress: person.detailed_address || '',
+                    dateBirth: person.dateBirth,
+                    citizenId: person.citizen_id,
+                    passportNumber: person.passport_number,
+                    docNumber: person.doc_number,
+                    docType: person.doc_type,
+                    resReason: person.res_reason,
+                    resType: person.res_type,
+                    province: person.province_id,
+                    ward: person.ward_id,
+                    detailedAddress: person.detailed_address,
                     
                 }));
                 
@@ -2980,17 +2980,15 @@ export default {
                     return detail;
                 });
                 
-                // Create updated name array from the current selectedNameDetails (which includes all previous updates)
-                const updatedNameArray = this.selectedNameDetails.map(detail => ({
-                    name: detail.name,
-                    nation: detail.nation,
-                    location: detail.location,
-                    start_date: detail.start_date,
-                    end_date: detail.end_date,
-                    note: detail.note,
-                    gender: detail.gender || detail.sex, // Handle both property names
-                    room_no: detail.room_no
-                }));
+                // Create updated name array from the current selectedNameDetails (preserving all fields like birthday, documents, address)
+                const updatedNameArray = this.selectedNameDetails.map(detail => {
+                    const { selected, ...rest } = detail;
+                    return {
+                        ...rest,
+                        gender: detail.gender || detail.sex, // Handle both property names
+                        room_no: detail.room_no
+                    };
+                });
                 
                 // Generate QR codes based on the updated name array
                 const qrCodes = await Promise.all(updatedNameArray.map(async person => {
@@ -3008,6 +3006,9 @@ export default {
                     name: JSON.stringify(updatedNameArray),
                     qr_codes: qrCodes  // Make sure this parameter name matches what API expects
                 });
+                
+                this.selectedItem.name = JSON.stringify(updatedNameArray);
+                await this.getDormData();
                 
                 this.editingNameRoom = null;
                 this.$notify({
@@ -3154,6 +3155,7 @@ export default {
                     id: this.selectedItem.id,
                     name: JSON.stringify(updatedNameArray)
                 });
+                this.selectedItem.name = JSON.stringify(updatedNameArray);
                 
                 if (response.data.qr_filenames && Array.isArray(response.data.qr_filenames)) {
                     const qrCodes = await Promise.all(updatedNameArray.map(async (person, index) => {
