@@ -11,8 +11,8 @@
 </template>
 
 <script>
-// import VersionChecker from "../../../@global-component/version-checker";
-import VersionChecker from 'D:/source/@global-component/version-checker.vue'
+import VersionChecker from "../../../@global-component/version-checker";
+// import VersionChecker from 'D:/source/@global-component/version-checker.vue'
 export default {
   components: {
     VersionChecker,
