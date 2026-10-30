@@ -1,0 +1,5 @@
+{
+  "name": "open-code-review",
+  "description": "Alibaba Open Code Review (OCR) CLI & Agent Skills for automated code review, diff inspection, and line-level issue reporting",
+  "version": "1.12.9"
+}

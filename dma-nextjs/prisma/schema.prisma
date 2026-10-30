@@ -1,0 +1,156 @@
+// ==============================================================================
+// Prisma Schema for PostgreSQL (vg_dma)
+// Dormitory Management Application (DMA) - Next.js 15 & PostgreSQL
+// ==============================================================================
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ==============================================================================
+// 1. BẢNG ĐƠN ĐĂNG KÝ KÝ TÚC XÁ (dorm_request_tbl)
+// ==============================================================================
+model DormRequest {
+  id             BigInt          @id @default(autoincrement())
+  keyInDate      DateTime        @map("key_in_date") @db.Date
+  creatorEmpno   String          @map("creator_empno") @db.Text
+  creatorName    String          @map("creator_name") @db.Text
+  creatorDept    String?         @map("creator_dept") @db.Text
+  creatorPhone   String?         @map("creator_phone") @db.Text
+  reason         String?         @db.Text
+  approvalFlow   Json            @default("[]") @map("approval_flow") @db.JsonB
+  status         String          @default("PENDING") @db.Text
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime?       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  currentLvlCode String?         @map("current_lvl_code") @db.Text
+  approvalLogs   Json?           @default("[]") @map("approval_logs") @db.JsonB
+
+  personnel      DormPersonnel[]
+
+  @@index([creatorEmpno], name: "idx_dorm_request_creator_empno")
+  @@index([creatorDept], name: "idx_dorm_request_creator_dept")
+  @@index([status], name: "idx_dorm_request_status")
+  @@index([keyInDate], name: "idx_dorm_request_key_in_date")
+  @@map("dorm_request_tbl")
+}
+
+// ==============================================================================
+// 2. BẢNG CHI TIẾT NGƯỜI LƯU TRÚ TRONG ĐƠN (dorm_personnel_tbl)
+// ==============================================================================
+model DormPersonnel {
+  id              BigInt      @id @default(autoincrement())
+  requestId       BigInt      @map("request_id")
+  fullName        String      @map("full_name") @db.Text
+  accomStatus     String?     @map("accom_status") @db.Text
+  gender          String?     @db.Text
+  birthDay        DateTime?   @map("birth_day") @db.Date
+  nationality     String?     @db.Text
+  startDate       DateTime?   @map("start_date") @db.Date
+  endDate         DateTime?   @map("end_date") @db.Date
+  documentType    String?     @map("document_type") @db.Text
+  documentNumber  String?     @map("document_number") @db.Text
+  notes           String?     @db.Text
+  roomNo          String?     @map("room_no") @db.Text
+  qrCode          String?     @map("qr_code") @db.Text
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  residenceReason String?     @map("residence_reason") @db.Text
+  residenceType   String?     @map("residence_type") @db.Text
+  provinceCity    String?     @map("province_city") @db.Text
+  wardCommune     String?     @map("ward_commune") @db.Text
+  detailedAddress String?     @map("detailed_address") @db.Text
+
+  request         DormRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId], name: "idx_dorm_personnel_request_id")
+  @@index([roomNo], name: "idx_dorm_personnel_room_no")
+  @@map("dorm_personnel_tbl")
+}
+
+// ==============================================================================
+// 3. CÁC BẢNG DANH MỤC (Master Tables)
+// ==============================================================================
+model DocumentType {
+  id        BigInt   @id @default(autoincrement())
+  name      String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("document_type_tbl")
+}
+
+model Location {
+  id        BigInt    @id @default(autoincrement())
+  loc       String    @db.Text
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime? @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("location_tbl")
+}
+
+model NationSub {
+  id        BigInt    @id @default(autoincrement())
+  code      String?   @db.Text
+  nation    Json      @db.JsonB
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime? @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("nation_tbl_sub")
+}
+
+model Province {
+  id        BigInt    @id @default(autoincrement())
+  code      String    @unique @db.Text
+  name      String?   @db.Text
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime? @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  wards     Ward[]
+
+  @@map("province_tbl")
+}
+
+model Ward {
+  id           BigInt    @id @default(autoincrement())
+  code         String    @db.Text
+  name         String?   @db.Text
+  provinceCode String?   @map("province_code") @db.Text
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime? @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  province     Province? @relation(fields: [provinceCode], references: [code])
+
+  @@index([provinceCode], name: "idx_ward_province_code")
+  @@map("ward_tbl")
+}
+
+model ResReason {
+  id        BigInt   @id @default(autoincrement())
+  resReason String   @map("res_reason") @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("res_reason_tbl")
+}
+
+model ResidenceType {
+  id        BigInt   @id @default(autoincrement())
+  name      String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("residence_type_tbl")
+}
+
+model Room {
+  id        BigInt    @id @default(autoincrement())
+  idName    BigInt    @map("id_name")
+  roomNo    String    @map("room_no") @db.Text
+  roomName  String    @map("room_name") @db.Text
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime? @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("room_tbl")
+}
+

@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  dma-nextjs:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vg-dma-nextjs
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "3040:3000"
+    volumes:
+      - ./public/qrcodes:/app/public/qrcodes
+
+  dma-nginx:
+    image: nginx:alpine
+    container_name: vg-dma-nginx
+    restart: unless-stopped
+    ports:
+      - "32040:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - dma-nextjs
+

@@ -1,0 +1,6 @@
+{
+  "/api/vgDorm/getAllData/route": "app/api/vgDorm/getAllData/route.js",
+  "/api/vgDorm/getDormMasterData/route": "app/api/vgDorm/getDormMasterData/route.js",
+  "/page": "app/page.js",
+  "/exports/page": "app/exports/page.js"
+}

@@ -21,5 +21,5 @@ echo Đang push lên remote 2 (dma)...
 git push dma -f
 
 echo.
-echo Đã hoàn tất việc update lên git!
+echo Đã duyệt việc update lên git!
 pause
